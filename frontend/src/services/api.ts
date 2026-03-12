@@ -19,6 +19,10 @@ function authHeaders(): HeadersInit {
 }
 
 async function handleResponse(res: Response) {
+  if (res.status === 401) {
+    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+    throw new Error('Unauthorized');
+  }
   if (!res.ok) {
     const body = await res.json().catch(() => ({ detail: res.statusText }));
     throw new Error(body.detail || res.statusText);
@@ -120,6 +124,19 @@ export const api = {
       headers: authHeaders(),
       body: form,
     }).then(handleResponse);
+  },
+
+  // Join season
+  joinSeason(inviteCode: string, teamName: string) {
+    return fetch(`${BASE}/seasons/join`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ invite_code: inviteCode, team_name: teamName }),
+    }).then(handleResponse);
+  },
+
+  getMyLeagues() {
+    return fetch(`${BASE}/leagues/mine`, { headers: getHeaders() }).then(handleResponse);
   },
 
   // Draft

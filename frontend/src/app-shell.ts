@@ -9,6 +9,9 @@ import './pages/page-league.js';
 import './pages/page-season.js';
 import './pages/page-players.js';
 import './pages/page-snake-draft.js';
+import './pages/page-join.js';
+import './pages/page-my-leagues.js';
+import './pages/page-admin-create.js';
 
 @customElement('app-shell')
 export class AppShell extends LitElement {
@@ -35,6 +38,9 @@ export class AppShell extends LitElement {
         { path: '/season/:seasonId', component: 'page-season' },
         { path: '/season/:seasonId/players', component: 'page-players' },
         { path: '/season/:seasonId/draft/snake', component: 'page-snake-draft' },
+        { path: '/join', component: 'page-join' },
+        { path: '/my-leagues', component: 'page-my-leagues' },
+        { path: '/admin/create', component: 'page-admin-create' },
         { path: '(.*)', redirect: '/' },
       ]);
     }

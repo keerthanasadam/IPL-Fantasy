@@ -29,6 +29,12 @@ export class PageLogin extends LitElement {
   @state() private displayName = '';
   @state() private error = '';
   @state() private loading = false;
+  private redirectTo = '/';
+
+  onBeforeEnter(location: any) {
+    const params = new URLSearchParams(location.search);
+    this.redirectTo = params.get('redirect') || '/';
+  }
 
   async handleSubmit(e: Event) {
     e.preventDefault();
@@ -40,7 +46,7 @@ export class PageLogin extends LitElement {
       } else {
         await login(this.email, this.password);
       }
-      window.location.href = '/';
+      window.location.href = this.redirectTo;
     } catch (err: any) {
       this.error = err.message;
     } finally {
