@@ -36,6 +36,7 @@ class Season(UUIDMixin, TimestampMixin, Base):
         Enum(SeasonStatus, name="season_status_enum"), default=SeasonStatus.SETUP, nullable=False
     )
     draft_config: Mapped[dict | None] = mapped_column(JSONB, default=dict)
+    invite_code: Mapped[str | None] = mapped_column(String(20), unique=True, nullable=True, index=True)
 
     league = relationship("League", back_populates="seasons")
     teams = relationship("Team", back_populates="season", order_by="Team.draft_position")

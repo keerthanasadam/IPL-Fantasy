@@ -20,6 +20,7 @@ class Team(UUIDMixin, TimestampMixin, Base):
         UUID(as_uuid=True), ForeignKey("users.id"), nullable=True
     )
     budget: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"), nullable=False)
+    points: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"), nullable=False)
 
     season = relationship("Season", back_populates="teams")
     owner = relationship("User", back_populates="teams")

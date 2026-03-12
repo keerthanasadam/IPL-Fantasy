@@ -14,6 +14,7 @@ class TeamResponse(BaseModel):
     draft_position: int
     owner_id: uuid.UUID | None
     budget: float
+    points: float
 
     model_config = {"from_attributes": True}
 

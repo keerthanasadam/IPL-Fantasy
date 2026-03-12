@@ -1,7 +1,9 @@
+import uuid
 from typing import AsyncGenerator
 
 from fastapi import Depends, HTTPException, Request, status
 from jose import JWTError, jwt
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 
@@ -32,6 +34,20 @@ async def get_current_user(
         return {"user_id": user_id, "email": payload.get("email")}
     except JWTError:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+
+
+async def get_current_admin(
+    current_user: dict = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    from app.models.user import User
+
+    stmt = select(User).where(User.id == uuid.UUID(current_user["user_id"]))
+    result = await db.execute(stmt)
+    user = result.scalar_one_or_none()
+    if not user or not user.is_admin:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
+    return current_user
 
 
 async def get_current_user_optional(
