@@ -20,7 +20,9 @@ function authHeaders(): HeadersInit {
 
 async function handleResponse(res: Response) {
   if (res.status === 401) {
-    window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+    if (window.location.pathname !== '/login') {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+    }
     throw new Error('Unauthorized');
   }
   if (!res.ok) {

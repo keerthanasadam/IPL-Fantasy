@@ -1,238 +1,370 @@
 # IPL Fantasy League — Frontend UX Flow Brainstorm
 
 > Captured: 2026-03-10
-> Stack: Lit + Vaadin Router (TypeScript frontend), FastAPI backend
-> Constraint: Single league per admin, 1 private league, users join via invite code
+> Stack: Lit + Vaadin Router (TypeScript), FastAPI + SQLAlchemy (Python)
+> Decisions locked in from review session
 
 ---
 
-## Context & Simplification
+## Clarified Decisions
 
-The app is a **single-league** IPL fantasy draft platform. One admin creates one private league. All other users join it via a shared invite code. There's no public league browsing. This simplification removes several edge cases and allows us to streamline the entire UX.
-
----
-
-## Screen Inventory
-
-### 1. Home Page — Not Logged In (`/`)
-
-**Current state:** Basic page with system status card only.
-
-**Desired state:**
-- **Navbar:** Brand logo | `Home` | `Join Private League` | `Login` | `Register`
-- **Hero:** IPL branding, tagline, call to action
-- **League cards:** Display the existing/known league(s) with a `Play Now` button → redirects to `/login` (with redirect-back param)
-- **Note:** Since there's one league, we can either hardcode a display card or fetch leagues without auth (needs backend support) and show a teaser card
-
-**Open question:** Does the backend expose any public league listing endpoint? Currently `GET /api/leagues` requires auth. We have two options:
-  - Option A: Add an unauthenticated `GET /api/leagues/public` endpoint that returns non-sensitive league info
-  - Option B: Hardcode the league teaser card on the frontend (simpler, acceptable for single-league constraint)
-  - **Recommendation:** Option B for now, since it's a single-league app
+| Question | Decision |
+|---|---|
+| Admin detection | Add explicit `is_admin: bool` flag to `User` model |
+| Multi-league | YES — future leagues (World Cup, etc.); keep `My Leagues` / multi-league flow |
+| Leaderboard data | Excel/CSV import of scores → powers leaderboard (separate import flow, TBD) |
+| Invite code | Generated on **Season** creation (not League). Admin shares season code. |
+| Terminology | Users **join a Season** (not a league). "Join Season" is the correct action. |
+| Team creation on join | `POST /seasons/join` auto-creates a Team owned by the joining user |
 
 ---
 
-### 2. Home Page — Logged In (clicking on league / nav action)
+## Data Model (Hierarchy)
 
-**URL:** Shows inline on `/` or on a `/leagues` overview
-
-**Behavior by role:**
-- **Regular user (non-admin):** Shows 1 card → "Join Private League" (with code)
-- **Admin/Commissioner:** Shows 2 cards → "Join Private League" + "Create League"
-
-**Role detection:** Check if current user is commissioner of any league via `GET /api/auth/me` + `GET /api/leagues` (currently returns leagues where `commissioner_id == user`)
-
-**Card designs (matching screenshot reference):**
 ```
-┌─────────────────────┐  ┌─────────────────────┐
-│  🔑 Join Private    │  │  ⚡ Create League    │
-│     League          │  │    (admin only)      │
-│                     │  │                      │
-│  [Join With Code]   │  │  [Create League]     │
-└─────────────────────┘  └─────────────────────┘
+User
+ └── is_admin: bool (NEW)
+
+League  (e.g., "IPL", "World Cup")
+ └── commissioner: User
+ └── seasons: [Season]
+
+Season  (e.g., "IPL 2026", "WC 2027")
+ └── league: League
+ └── invite_code: str (NEW — generated on creation, unique)
+ └── teams: [Team]
+ └── players: [Player]  ← CSV import
+
+Team  (one per user per season)
+ └── owner: User (nullable → claimed via join)
+ └── name: str
+ └── draft_position: int
+ └── points: Decimal (NEW — updated via score import)
 ```
 
 ---
 
-### 3. Join Private League (`/join` or modal)
+## Required Backend Changes
 
-**Trigger:** Clicking "Join Private League" card or navbar link
+### 1. User model — add `is_admin`
+```python
+# app/models/user.py
+is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+```
+- Migration required
+- Seed the first user or manually set via DB/admin script
+- `GET /api/auth/me` response must include `is_admin`
 
-**Form fields:**
-- `Invitation Code *` — text input, required
-- `Team Name *` — text input, required
-- `[Join League]` button
+### 2. Season model — add `invite_code`
+```python
+# app/models/season.py
+invite_code: Mapped[str] = mapped_column(String(20), unique=True, nullable=True, index=True)
+```
+- Generated on `POST /leagues/:id/seasons` — short alphanumeric, e.g. `IPL26-XKFM`
+- Must be unique across all seasons
+- Migration required
 
-**Backend requirement (MISSING):**
-- Current `League` model has no `join_code` / `invite_code` field
-- No endpoint to join a league by code
-- League membership is implicit via having a team in a season — need to clarify how "joining a league" maps to the data model
+### 3. Team model — add `points`
+```python
+# app/models/team.py
+points: Mapped[Decimal] = mapped_column(Numeric(10, 2), default=Decimal("0"), nullable=False)
+```
+- Updated by future score import endpoint
+- Migration required
 
-**Proposed backend changes needed:**
-1. Add `invite_code: str` column to `leagues` table (generated by admin on creation)
-2. Add `POST /api/leagues/join` endpoint: `{ invite_code, team_name }` → creates a team in the active season for that league
-3. Add `GET /api/leagues/mine` endpoint: returns leagues user is a member of (either as commissioner OR as a team member in any season)
+### 4. Change `create_season` — do NOT auto-create teams
+Currently, `POST /leagues/:id/seasons` creates N empty teams upfront. With the join-by-code flow, users create their own team when they join. Remove the auto-create loop. Only the admin's team (if they want to play) is created when they explicitly join.
 
-**Implementation path:**
-- The existing `GET /api/leagues` only returns leagues where the user is commissioner
-- Need to add a query that joins through `seasons → teams → user` to find leagues where the user has a team
+### 5. New endpoint: `POST /api/seasons/join`
+```
+Body: { invite_code: str, team_name: str }
+Auth: required
+Response: { team, season, league }
+Errors:
+  - 404 if invite_code not found
+  - 400 if season is not in SETUP status (joining closed once draft starts)
+  - 400 if user already has a team in this season
+  - 400 if season.teams.count >= season.team_count (season full)
+```
+Creates a new `Team` with `owner_id = current_user`, `draft_position = current_count + 1` (temporary; randomized before draft starts).
+
+### 6. New endpoint: `GET /api/seasons/mine`
+Returns all seasons where the current user owns a team (plus their team info).
+```
+Response: [{ season, league, team }]
+```
+Used by `My Leagues` page to list user's active seasons across all leagues.
+
+### 7. New endpoint: `GET /api/leagues/mine`
+Returns all leagues where the user is commissioner OR has a team in any season.
+```
+Response: [{ league, user_role: "commissioner" | "member", seasons: [...] }]
+```
+
+### 8. `GET /api/auth/me` — add `is_admin` to response
+```json
+{ "user_id": "...", "email": "...", "display_name": "...", "is_admin": true }
+```
 
 ---
 
-### 4. My Leagues (Post-join)
+## Screen Flows
 
-**Nav:** Add `My Leagues` link in navbar (visible only when logged in)
+### Home Page — Not Logged In (`/`)
 
-**URL:** `/my-leagues`
+**Navbar:** `[IPL Fantasy]` · `[Home]` · `[Join Season]` · `[Login]` · `[Register]`
 
-**Content:**
-- List of leagues the user is a member of (as commissioner or participant)
-- Each league card shows: league name, season status, user's team name
-- Clicking → navigates to league home page (`/league/:leagueId`)
-
-**Backend requirement (MISSING):**
-- `GET /api/leagues/mine` — as described above
+**Page:**
+- Hero banner with IPL branding
+- League cards fetched from `GET /api/leagues/public` (new, no auth) OR statically rendered
+  - Each card: League name, active season name, player count, status
+  - `[Play Now]` button → `/login?redirect=/`
+- Since it's a known-league app, can statically show "IPL Fantasy Draft" with CTA
 
 ---
 
-### 5. League Home Page (`/league/:leagueId`)
+### Home Page — Logged In (`/`)
 
-**Simplified from screenshots:** Two tabs/sections only:
-1. **Leaderboard / Home** — team standings, points, rankings
-2. **Draft Room** — enter the live draft (button → `/season/:seasonId/draft/snake`)
+After login, `page-home.ts` detects auth state and shows action cards:
 
-**Current `page-league.ts` shows:** Admin-focused Season creation form + seasons list. This needs to be refactored.
-
-**Proposed new layout:**
+**Regular user:**
 ```
-┌────────────────────────────────────────────────┐
-│  League Name          Status Badge             │
-│  Sub-nav: [Home/Leaderboard] [Draft Room]      │
-├────────────────────────────────────────────────┤
-│  LEADERBOARD TAB:                              │
-│  Rank | Team | Manager | Points | Status       │
-│  ─────────────────────────────────────────     │
-│  1.   | Warriors | VINOD | 215 | ...           │
-│  2.   | Kleen    | user2 | 180 | ...           │
-├────────────────────────────────────────────────┤
-│  DRAFT ROOM TAB:                               │
-│  Season info + [Enter Draft Room] button       │
-│  Draft status, round info                      │
-└────────────────────────────────────────────────┘
+┌──────────────────────────────────┐
+│  🔑  Join a Season               │
+│  Enter an invite code to join    │
+│  a league season and draft       │
+│                                  │
+│     [Join with Code]             │
+└──────────────────────────────────┘
 ```
 
-**Backend requirement:**
-- `GET /api/leagues/:id` already returns seasons with teams
-- Leaderboard data = teams + their drafted players + points (may not exist yet if scoring isn't implemented)
-- For MVP: show team list with team name and draft position (points TBD)
+**Admin user (`is_admin: true`):**
+```
+┌──────────────────────────────────┐  ┌──────────────────────────────────┐
+│  🔑  Join a Season               │  │  ⚡  Create League / Season       │
+│  Enter an invite code to join    │  │  Set up a new league and season  │
+│  a league season and draft       │  │  then share the invite code      │
+│                                  │  │                                  │
+│     [Join with Code]             │  │     [Create League]              │
+└──────────────────────────────────┘  └──────────────────────────────────┘
+```
+
+---
+
+### Join Season (`/join` or modal on home page)
+
+**Trigger:** Navbar `[Join Season]` or home page card `[Join with Code]`
+**Auth:** Required — redirect to login if not authenticated
+
+**Form:**
+```
+┌────────────────────────────────────────┐
+│  ← Back                                │
+│                                        │
+│  Join a Season                         │
+│  ─────────────────────────────────     │
+│                                        │
+│  Invite Code *                         │
+│  [________________________]            │
+│                                        │
+│  Team Name *                           │
+│  [________________________]            │
+│                                        │
+│  [   Join Season   ]                   │
+│                                        │
+│  On success → redirect to /league/:id  │
+└────────────────────────────────────────┘
+```
+
+**API call:** `POST /api/seasons/join` `{ invite_code, team_name }`
+**On success:** Navigate to league home `/league/:leagueId`
+
+---
+
+### Admin: Create League Flow
+
+**Trigger:** Admin clicks "Create League" card
+**Options:**
+- Option A: Full page `/admin/create-league`
+- Option B: Multi-step modal
+
+**Step 1 — Create League:**
+```
+League Name: [IPL Fantasy 2026]
+[Create League]
+```
+API: `POST /api/leagues` `{ name }`
+
+**Step 2 — Create Season (within that league):**
+```
+Season Label:    [IPL 2026]
+Draft Format:    [Snake ▾]
+Max Teams:       [8]
+Draft Rounds:    [15]
+[Create Season]
+```
+API: `POST /api/leagues/:id/seasons`
+**On success:** Show the generated invite code prominently:
+```
+┌─────────────────────────────────────────┐
+│  ✅ Season Created!                     │
+│                                         │
+│  Invite Code:  IPL26-XKFM              │
+│  Share this with participants           │
+│                                         │
+│  [Copy Code]   [Go to Season]           │
+└─────────────────────────────────────────┘
+```
+
+---
+
+### My Leagues (`/my-leagues`)
+
+**Nav:** `[My Leagues]` visible to all logged-in users
+**API:** `GET /api/leagues/mine`
+
+```
+My Leagues
+────────────────────────────────────────────────
+
+┌─────────────────────────────────────────────┐
+│  IPL Fantasy                    [League]    │
+│  ───────────────────────────────────────    │
+│  📅 IPL 2026          Status: SETUP         │
+│  👤 My Team: Warriors  Position: #3         │
+│  👥 6/8 teams joined                        │
+│                         [Go to Season →]    │
+└─────────────────────────────────────────────┘
+
+┌─────────────────────────────────────────────┐
+│  World Cup (coming soon)                    │
+│  No active season yet                       │
+└─────────────────────────────────────────────┘
+```
+
+---
+
+### League / Season Home (`/league/:leagueId`)
+
+**Simplified layout — 2 sections only:**
+
+```
+┌─────────────────────────────────────────────────────┐
+│  IPL Fantasy  >  IPL 2026            SETUP badge    │
+│  ─────────────────────────────────────────────────  │
+│  Sub-nav: [🏠 Home]  [⚡ Draft Room]               │
+│           (+ [⚙ Settings] for admin only)           │
+└─────────────────────────────────────────────────────┘
+
+HOME TAB (Leaderboard):
+┌──────────────────────────────────────────────────────┐
+│  Rank  Team          Manager     Pts    Status        │
+│  ────  ────────────  ──────────  ─────  ──────────    │
+│  1     Warriors      VINOD       215    Unlimited      │
+│  2     Kleen         Kaarti...   180    Unlimited      │
+│  3     Fighters      user3       150    —              │
+└──────────────────────────────────────────────────────┘
+
+DRAFT ROOM TAB:
+┌──────────────────────────────────────────────────────┐
+│  Season: IPL 2026  |  Format: Snake  |  Status: SETUP │
+│  8 rounds / 8 teams / 6 joined                        │
+│                                                        │
+│  [Enter Draft Room]  (if status = drafting/completed)  │
+│  [Start Draft]  (admin only, status = setup)           │
+└──────────────────────────────────────────────────────┘
+```
+
+**Data source:** `GET /api/leagues/:id` → season → teams (+ points field once scoring is added)
 
 ---
 
 ## Navigation Architecture
 
-### Navbar States
-
-**Not logged in:**
+### Navbar — Not Logged In
 ```
-[IPL Fantasy]    [Home]  [Join Private League]  [Login]  [Register]
+[IPL Fantasy]         [Home]  [Join Season]  [Login]  [Register]
 ```
 
-**Logged in (regular user):**
+### Navbar — Logged In (regular user)
 ```
-[IPL Fantasy]    [Home]  [My Leagues]  [Join Private League]  [VINOD ▾]
-```
-
-**Logged in (admin):**
-```
-[IPL Fantasy]    [Home]  [My Leagues]  [Create League]  [VINOD ▾]
+[IPL Fantasy]         [Home]  [My Leagues]  [Join Season]  [VINOD ▾]
+                                                             └─ Logout
 ```
 
-**Inside a league (secondary nav):**
+### Navbar — Logged In (admin)
 ```
-[← My Leagues]  [League Name]  [Home]  [Draft Room]
+[IPL Fantasy]         [Home]  [My Leagues]  [Create League]  [VINOD ▾]
+                                                               └─ Logout
 ```
+
+**Note:** Admin doesn't need `Join Season` in navbar — they create seasons. They can join via the season's invite code if they want to play.
 
 ---
 
-## Backend Gaps Summary
+## Frontend Routes
 
-| Feature | Gap | Solution |
-|---|---|---|
-| Public league teaser | `GET /leagues` requires auth | Hardcode teaser card (single-league app) |
-| Join with invite code | No `invite_code` on `League` model | Add `invite_code` column + migration |
-| Join endpoint | No `POST /leagues/join` | Add endpoint creating team in active season |
-| My Leagues | `GET /leagues` only returns commissioner's leagues | Add `GET /leagues/mine` querying through teams |
-| Leaderboard data | No scoring system yet | Show team list as standings placeholder; add points later |
-| User role detection | No `is_admin` flag | Use: is commissioner of any league = admin |
-
----
-
-## Implementation Order (Recommended)
-
-### Phase 1: Backend foundations
-1. Add `invite_code` to `League` model + migration
-2. Add `POST /api/leagues/join` endpoint
-3. Add `GET /api/leagues/mine` endpoint
-4. Add `GET /api/auth/me` response to include `is_admin` or detect via leagues
-
-### Phase 2: Frontend nav + home page
-1. Refactor `nav-bar.ts` — auth-aware, role-aware links
-2. Refactor `page-home.ts` — logged-out hero + league card, logged-in action cards
-3. Add `Join Private League` page/modal with form
-4. Add route `/join` or handle as modal state
-
-### Phase 3: My Leagues + League Home
-1. Add `page-my-leagues.ts` — list of joined leagues
-2. Refactor `page-league.ts` — leaderboard + draft room tabs (remove admin season creation form for non-admins)
-3. Add route `/my-leagues`
-
-### Phase 4: Polish
-1. Consistent design language across all pages
-2. Auth guards — redirect to `/login` if not authenticated on protected routes
-3. Admin guard — hide Create League from regular users
+| Path | Component | Auth | Notes |
+|---|---|---|---|
+| `/` | `page-home` | No | Different content logged-in vs out |
+| `/login` | `page-login` | No | Add redirect param support |
+| `/join` | `page-join` (NEW) | Yes | Join season with code |
+| `/my-leagues` | `page-my-leagues` (NEW) | Yes | List of user's leagues/seasons |
+| `/league/:leagueId` | `page-league` | Yes | Refactored: leaderboard + draft tabs |
+| `/season/:seasonId` | `page-season` | Yes (admin) | Season admin/setup page |
+| `/season/:seasonId/players` | `page-players` | Yes (admin) | Player pool |
+| `/season/:seasonId/draft/snake` | `page-snake-draft` | Yes | Draft room |
+| `/admin/create` | `page-admin-create` (NEW) | Yes (admin) | Create league + season |
 
 ---
 
-## Data Flow Diagram
+## Auth & Role Guard Plan
 
-```
-Not Logged In
-│
-├── Home (/) ──────────────────── [Play Now] ──→ /login?redirect=/
-├── Navbar [Join Private League] ──────────────→ /join (redirect to login)
-└── Navbar [Login / Register] ─────────────────→ /login
+**Auth service** (`services/auth.ts`) needs:
+- `getMe()` — cached, returns `{ user_id, email, display_name, is_admin }`
+- `isAdmin()` — returns `is_admin` from cached user
+- Auth guard helper for pages that require login
 
-Logged In (Regular User)
-│
-├── Home (/) ──── [Join Private League card] ──→ /join (inline form)
-├── Navbar [My Leagues] ────────────────────────→ /my-leagues
-│     └── League card ────────────────────────→ /league/:id
-│           ├── [Home tab] ────────────────── Leaderboard
-│           └── [Draft Room tab] ───────────→ /season/:sid/draft/snake
-└── Navbar [Join Private League] ──────────────→ /join
-
-Logged In (Admin)
-│
-├── Home (/) ──── [Join Private League card] ──→ /join
-│              ── [Create League card] ─────────→ Create League modal/flow
-├── Navbar [My Leagues] ────────────────────────→ /my-leagues
-└── Navbar [Create League] ─────────────────────→ Create League flow
-```
+**NavBar** needs to:
+- Call `getMe()` on mount (or read from localStorage-cached user)
+- Show different links based on `isLoggedIn()` and `isAdmin()`
+- Show user's display name in top-right with logout dropdown
 
 ---
 
-## Design Notes
+## Implementation Phases
 
-- **Color palette:** Dark theme — `#0f172a` (deep navy) background, `#f5a623` (IPL gold) accent, `#1e293b` cards — already established
-- **Font:** Currently no custom font loaded — opportunity to add a distinctive display font (e.g., Rajdhani or Oswald for IPL cricket feel)
-- **Cards:** Use the existing `.card` component style; add hover animations
-- **Draft Room:** Keep the existing dark, data-dense design (`page-snake-draft.ts`) — it's already well-suited
+### Phase 1 — Backend: Schema + API changes
+1. Migration: add `is_admin` to `users`, `invite_code` to `seasons`, `points` to `teams`
+2. Update `create_season` — generate invite_code, remove auto-team-creation
+3. Add `POST /api/seasons/join`
+4. Add `GET /api/leagues/mine`
+5. Update `GET /api/auth/me` to include `is_admin`
+
+### Phase 2 — Frontend: Auth + Nav
+1. Update `services/auth.ts` — add `getMe()`, `isAdmin()`, cache user info
+2. Update `services/api.ts` — add `joinSeason()`, `getMyLeagues()`, `createLeague()`
+3. Refactor `nav-bar.ts` — auth-aware, role-aware, user menu
+
+### Phase 3 — Frontend: Pages
+1. Refactor `page-home.ts` — hero for logged-out, action cards for logged-in
+2. Add `page-join.ts` — join season form
+3. Add `page-my-leagues.ts` — list of seasons user belongs to
+4. Refactor `page-league.ts` — leaderboard + draft room tabs, remove admin season form
+5. Add `page-admin-create.ts` — create league + season flow with invite code display
+
+### Phase 4 — Polish
+1. Auth guards on protected routes
+2. Admin guards on admin-only actions/pages
+3. Loading states, error handling
+4. Invite code copy-to-clipboard
+5. Responsive design
 
 ---
 
-## Open Questions
+## Open Items (Future, Not Now)
 
-1. **Admin detection:** Should there be an `is_admin` flag in the DB, or is "commissioner of a league" sufficient to identify admin?
-2. **One league assumption:** If there's always exactly one league, should we skip `/my-leagues` and go directly from "Play Now" → league home after joining?
-3. **Scoring/Leaderboard:** Is any scoring logic implemented? Or is the leaderboard purely draft-order based for now?
-4. **Invite code generation:** Who generates it? Admin on league creation? Should it be visible in the admin's league view?
-5. **Join flow:** When a user joins a league with a code, do we create them a team in the **active/current season** automatically? Or do they need to register per-season?
+- Score import via Excel/CSV → `POST /seasons/:id/scores/import` → updates `team.points`
+- Leaderboard shows points as `0` until scores are imported
+- Season status `ACTIVE` = post-draft, scores importable
+- `page-season.ts` (admin setup page) may need `invite_code` displayed prominently once season is created

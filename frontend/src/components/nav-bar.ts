@@ -6,6 +6,7 @@ import { getMe, isAdmin, logout, type UserInfo } from '../services/auth.js';
 export class NavBar extends LitElement {
   @state() private user: UserInfo | null = null;
   @state() private menuOpen = false;
+  @state() private authReady = false;
 
   static styles = css`
     :host {
@@ -81,6 +82,7 @@ export class NavBar extends LitElement {
   async connectedCallback() {
     super.connectedCallback();
     this.user = await getMe();
+    this.authReady = true;
   }
 
   private toggleMenu() {
@@ -99,7 +101,9 @@ export class NavBar extends LitElement {
         <a href="/" class="brand">IPL Fantasy League</a>
         <div class="links">
           <a href="/">Home</a>
-          ${this.user
+          ${!this.authReady
+            ? ''
+            : this.user
             ? html`
                 <a href="/my-leagues">My Leagues</a>
                 ${admin

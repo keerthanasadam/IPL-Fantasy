@@ -8,7 +8,24 @@ export interface UserInfo {
   is_admin: boolean;
 }
 
-let cachedUser: UserInfo | null = null;
+const SESSION_KEY = 'ipl_user';
+
+let cachedUser: UserInfo | null = (() => {
+  try {
+    const stored = sessionStorage.getItem(SESSION_KEY);
+    return stored ? (JSON.parse(stored) as UserInfo) : null;
+  } catch {
+    return null;
+  }
+})();
+
+function persistUser(user: UserInfo | null) {
+  cachedUser = user;
+  try {
+    if (user) sessionStorage.setItem(SESSION_KEY, JSON.stringify(user));
+    else sessionStorage.removeItem(SESSION_KEY);
+  } catch { /* storage unavailable */ }
+}
 
 export function getToken(): string | null {
   return localStorage.getItem('token');
@@ -23,11 +40,17 @@ export async function getMe(): Promise<UserInfo | null> {
   if (!isLoggedIn()) return null;
   try {
     const user = await api.getMe();
-    cachedUser = { ...user, user_id: user.id };
+    persistUser({ ...user, user_id: user.id });
     return cachedUser;
   } catch {
+    persistUser(null);
+    localStorage.removeItem('token');
     return null;
   }
+}
+
+export function getCachedUser(): UserInfo | null {
+  return cachedUser;
 }
 
 export function isAdmin(): boolean {
@@ -45,7 +68,7 @@ export function guardRoute(redirectTo: string = '/'): boolean {
 export async function login(email: string, password: string): Promise<void> {
   const res = await api.login(email, password);
   localStorage.setItem('token', res.access_token);
-  cachedUser = null;
+  persistUser(null);
 }
 
 export async function register(email: string, password: string, displayName: string): Promise<void> {
@@ -54,7 +77,7 @@ export async function register(email: string, password: string, displayName: str
 }
 
 export function logout(): void {
-  cachedUser = null;
+  persistUser(null);
   localStorage.removeItem('token');
   window.location.href = '/login';
 }
