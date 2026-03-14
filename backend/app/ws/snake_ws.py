@@ -3,12 +3,14 @@
 import uuid
 import json
 
-from fastapi import APIRouter, Depends, WebSocket, WebSocketDisconnect
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from jose import JWTError, jwt
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
 from app.models.season import Season, SeasonStatus
+from app.models.user import User
 from app.services.snake_draft_service import get_draft_state, make_pick, undo_last_pick
 from app.ws.manager import manager
 
@@ -21,11 +23,6 @@ def decode_token(token: str) -> dict | None:
         return {"user_id": payload.get("sub"), "email": payload.get("email")}
     except JWTError:
         return None
-
-
-async def get_ws_db(app) -> AsyncSession:
-    async with app.state.async_session() as session:
-        yield session
 
 
 @router.websocket("/ws/draft/{season_id}")
@@ -41,13 +38,21 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
     redis = websocket.app.state.redis
     await manager.init_redis(redis)
 
+    # Resolve is_admin once at connect time to avoid per-message DB lookups
+    is_admin_user = False
+    if user:
+        async with websocket.app.state.async_session() as db:
+            user_row = await db.get(User, uuid.UUID(user["user_id"]))
+            is_admin_user = bool(user_row and user_row.is_admin)
+
     # Send initial draft state
     try:
         async with websocket.app.state.async_session() as db:
+            season = await db.get(Season, season_id)
             state = await get_draft_state(db, season_id)
             await manager.send_personal(websocket, {
                 "type": "draft_state",
-                "data": _serialize_state(state),
+                "data": _serialize_state(state, season.draft_config if season else {}),
             })
     except Exception as e:
         await manager.send_personal(websocket, {"type": "error", "message": str(e)})
@@ -73,11 +78,11 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                             "type": "pick_made",
                             "data": pick_data,
                         })
-                        # Send updated state
+                        season = await db.get(Season, season_id)
                         state = await get_draft_state(db, season_id)
                         await manager.broadcast_to_room(room, {
                             "type": "draft_state",
-                            "data": _serialize_state(state),
+                            "data": _serialize_state(state, season.draft_config if season else {}),
                         })
 
                     elif msg_type == "force_pick":
@@ -91,10 +96,11 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                             "type": "pick_made",
                             "data": pick_data,
                         })
+                        season = await db.get(Season, season_id)
                         state = await get_draft_state(db, season_id)
                         await manager.broadcast_to_room(room, {
                             "type": "draft_state",
-                            "data": _serialize_state(state),
+                            "data": _serialize_state(state, season.draft_config if season else {}),
                         })
 
                     elif msg_type == "undo_last_pick":
@@ -104,10 +110,11 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                                 "type": "pick_undone",
                                 "data": undone,
                             })
+                            season = await db.get(Season, season_id)
                             state = await get_draft_state(db, season_id)
                             await manager.broadcast_to_room(room, {
                                 "type": "draft_state",
-                                "data": _serialize_state(state),
+                                "data": _serialize_state(state, season.draft_config if season else {}),
                             })
                         else:
                             await manager.send_personal(websocket, {
@@ -115,24 +122,39 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                                 "message": "No picks to undo",
                             })
 
-                    elif msg_type == "pause_draft":
-                        season_stmt = await db.execute(
-                            __import__("sqlalchemy").select(Season).where(Season.id == season_id)
-                        )
+                    elif msg_type in ("pause_draft", "admin_pause_draft"):
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
+                        season_stmt = await db.execute(select(Season).where(Season.id == season_id))
                         season = season_stmt.scalar_one()
                         season.draft_config = {**(season.draft_config or {}), "paused": True}
                         await db.commit()
                         await manager.broadcast_to_room(room, {"type": "draft_paused"})
 
-                    elif msg_type == "resume_draft":
-                        from sqlalchemy import select as sel
-                        season_stmt = await db.execute(sel(Season).where(Season.id == season_id))
+                    elif msg_type in ("resume_draft", "admin_resume_draft"):
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
+                        season_stmt = await db.execute(select(Season).where(Season.id == season_id))
                         season = season_stmt.scalar_one()
                         config = dict(season.draft_config or {})
                         config.pop("paused", None)
                         season.draft_config = config
                         await db.commit()
                         await manager.broadcast_to_room(room, {"type": "draft_resumed"})
+
+                    elif msg_type == "admin_reset_timer":
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
+                        season_stmt = await db.execute(select(Season).where(Season.id == season_id))
+                        season = season_stmt.scalar_one()
+                        timer_seconds = (season.draft_config or {}).get("pick_timer_seconds", 0)
+                        await manager.broadcast_to_room(room, {
+                            "type": "admin_timer_reset",
+                            "pick_timer_seconds": timer_seconds,
+                        })
 
                     else:
                         await manager.send_personal(websocket, {
@@ -149,7 +171,8 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
         await manager.disconnect(websocket, room)
 
 
-def _serialize_state(state) -> dict:
+def _serialize_state(state, draft_config: dict | None = None) -> dict:
+    config = draft_config or {}
     return {
         "season_id": str(state.season_id),
         "status": state.status,
@@ -163,4 +186,6 @@ def _serialize_state(state) -> dict:
         "picks": state.picks,
         "teams": state.teams,
         "timer_seconds": state.timer_seconds,
+        "pick_timer_seconds": config.get("pick_timer_seconds", 0),
+        "paused": bool(config.get("paused", False)),
     }

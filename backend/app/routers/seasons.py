@@ -5,14 +5,17 @@ import uuid
 from decimal import Decimal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.deps import get_current_user, get_db
+from app.deps import get_current_admin, get_current_user, get_db
+from app.models.auction_event import AuctionEvent
 from app.models.league import League
+from app.models.player import Player
 from app.models.season import DraftFormat, Season, SeasonStatus
+from app.models.snake_pick import SnakePick
 from app.models.team import Team
 from app.schemas.season import (
     SeasonCreate,
@@ -58,7 +61,7 @@ async def create_season(
             label=body.label,
             draft_format=draft_format,
             team_count=body.team_count,
-            draft_config=body.draft_config,
+            draft_config=body.draft_config.model_dump(exclude_none=True),
             invite_code=invite_code,
         )
         db.add(season)
@@ -144,7 +147,7 @@ async def get_season(
 async def update_season(
     season_id: uuid.UUID,
     body: SeasonUpdate,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = select(Season).where(Season.id == season_id)
@@ -158,11 +161,32 @@ async def update_season(
     if body.label is not None:
         season.label = body.label
     if body.draft_config is not None:
-        season.draft_config = body.draft_config
+        season.draft_config = body.draft_config.model_dump(exclude_none=True)
 
     await db.commit()
     await db.refresh(season)
     return season
+
+
+@router.delete("/seasons/{season_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_season(
+    season_id: uuid.UUID,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    season = await db.get(Season, season_id)
+    if not season:
+        raise HTTPException(status_code=404, detail="Season not found")
+    if season.status != SeasonStatus.SETUP:
+        raise HTTPException(status_code=400, detail="Can only delete seasons in SETUP status")
+
+    # Cascade in FK dependency order: picks/events → players → teams → season
+    await db.execute(delete(SnakePick).where(SnakePick.season_id == season_id))
+    await db.execute(delete(AuctionEvent).where(AuctionEvent.season_id == season_id))
+    await db.execute(delete(Player).where(Player.season_id == season_id))
+    await db.execute(delete(Team).where(Team.season_id == season_id))
+    await db.delete(season)
+    await db.commit()
 
 
 @router.post("/seasons/{season_id}/start-draft", response_model=SeasonResponse)

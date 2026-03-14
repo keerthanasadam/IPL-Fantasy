@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.deps import get_current_user, get_db
+from app.deps import get_current_admin, get_current_user, get_db
 from app.models.player import Player
 from app.models.season import Season
 from app.schemas.player import ImportResult, PlayerListResponse, PlayerResponse
@@ -50,7 +50,7 @@ async def list_players(
 async def import_players(
     season_id: uuid.UUID,
     file: UploadFile = File(...),
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     # Verify season exists
@@ -110,7 +110,7 @@ async def import_players(
 @router.delete("")
 async def clear_players(
     season_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     from sqlalchemy import delete

@@ -1,20 +1,37 @@
 import uuid
 from datetime import datetime
-from pydantic import BaseModel, Field, field_validator
+from typing import Literal
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.league import LeagueResponse
+
+
+class RoleLimitConfig(BaseModel):
+    min: int = Field(default=0, ge=0)
+    max: int = Field(default=99, ge=0)
+
+
+class DraftConfig(BaseModel):
+    model_config = ConfigDict(extra="allow")
+
+    rounds: int = Field(default=15, ge=1)
+    pick_timer_seconds: int = Field(default=0, ge=0)
+    scheduled_draft_time: str | None = None
+    on_timeout: Literal["auto_pick", "skip_turn"] = "auto_pick"
+    role_limits: dict[str, RoleLimitConfig] = Field(default_factory=dict)
 
 
 class SeasonCreate(BaseModel):
     label: str = "IPL 2026"
     draft_format: str = "snake"
     team_count: int = Field(ge=2, le=20, default=8)
-    draft_config: dict = Field(default_factory=lambda: {"rounds": 15, "timer_seconds": 0})
+    draft_config: DraftConfig = Field(default_factory=DraftConfig)
 
 
 class SeasonUpdate(BaseModel):
     label: str | None = None
-    draft_config: dict | None = None
+    draft_config: DraftConfig | None = None
 
 
 class SeasonResponse(BaseModel):
