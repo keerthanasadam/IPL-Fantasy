@@ -77,12 +77,16 @@ export class DraftWebSocket {
     this.send({ type: 'undo_last_pick' });
   }
 
-  pauseDraft() {
-    this.send({ type: 'pause_draft' });
+  adminPauseDraft() {
+    this.send({ type: 'admin_pause_draft' });
   }
 
-  resumeDraft() {
-    this.send({ type: 'resume_draft' });
+  adminResumeDraft() {
+    this.send({ type: 'admin_resume_draft' });
+  }
+
+  adminResetTimer() {
+    this.send({ type: 'admin_reset_timer' });
   }
 
   disconnect() {

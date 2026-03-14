@@ -128,6 +128,37 @@ export const api = {
     }).then(handleResponse);
   },
 
+  updateSeason(seasonId: string, data: { label?: string; draft_config?: object }) {
+    return fetch(`${BASE}/seasons/${seasonId}`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse);
+  },
+
+  async deleteSeason(seasonId: string) {
+    const res = await fetch(`${BASE}/seasons/${seasonId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (res.status === 401) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(body.detail || res.statusText);
+    }
+    // 204 No Content
+  },
+
+  clearPlayers(seasonId: string) {
+    return fetch(`${BASE}/seasons/${seasonId}/players`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
   // Join season
   joinSeason(inviteCode: string, teamName: string) {
     return fetch(`${BASE}/seasons/join`, {

@@ -1,12 +1,24 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import { api } from '../services/api.js';
 import { getMe, isAdmin } from '../services/auth.js';
 
+const ROLE_KEYS = ['WK', 'BAT', 'BOWL', 'AR'] as const;
+type RoleKey = typeof ROLE_KEYS[number];
+
 @customElement('page-admin-create')
 export class PageAdminCreate extends LitElement {
-  static styles = [sharedStyles];
+  static styles = [
+    sharedStyles,
+    css`
+      .role-limits-table { width: 100%; border-collapse: collapse; margin-top: 0.5rem; }
+      .role-limits-table th { text-align: left; font-size: 0.8rem; color: #94a3b8; padding: 0.25rem 0.5rem; }
+      .role-limits-table td { padding: 0.25rem 0.5rem; }
+      .role-limits-table td:first-child { color: #f5a623; font-weight: 600; width: 3rem; }
+      .role-limits-table input[type="number"] { width: 60px; }
+    `,
+  ];
 
   @state() private step: 1 | 2 | 3 = 1;
   @state() private createdLeagueId = '';
@@ -24,6 +36,15 @@ export class PageAdminCreate extends LitElement {
   @state() private draftFormat = 'snake';
   @state() private maxTeams = 8;
   @state() private draftRounds = 15;
+  @state() private pickTimer = 60;
+  @state() private scheduledTime = '';
+  @state() private onTimeout: 'auto_pick' | 'skip_turn' = 'auto_pick';
+  @state() private roleLimits: Record<RoleKey, { min: number; max: number }> = {
+    WK:   { min: 1, max: 2 },
+    BAT:  { min: 3, max: 6 },
+    BOWL: { min: 3, max: 6 },
+    AR:   { min: 1, max: 4 },
+  };
 
   async connectedCallback() {
     super.connectedCallback();
@@ -59,7 +80,13 @@ export class PageAdminCreate extends LitElement {
         label: this.seasonLabel,
         draft_format: this.draftFormat,
         team_count: this.maxTeams,
-        draft_config: { rounds: this.draftRounds, timer_seconds: 0 },
+        draft_config: {
+          rounds: this.draftRounds,
+          pick_timer_seconds: this.pickTimer,
+          scheduled_draft_time: this.scheduledTime || undefined,
+          on_timeout: this.onTimeout,
+          role_limits: this.roleLimits,
+        },
       });
       this.inviteCode = season.invite_code;
       this.createdLeagueSeasonId = season.id;
@@ -79,9 +106,13 @@ export class PageAdminCreate extends LitElement {
     }
   }
 
+  private updateRoleLimit(role: RoleKey, field: 'min' | 'max', value: number) {
+    this.roleLimits = { ...this.roleLimits, [role]: { ...this.roleLimits[role], [field]: value } };
+  }
+
   render() {
     return html`
-      <div style="max-width: 480px; margin: 2rem auto; padding: 0 1rem;">
+      <div style="max-width: 520px; margin: 2rem auto; padding: 0 1rem;">
         <h1>Create League &amp; Season</h1>
 
         ${this.step === 1 ? this.renderStep1() : ''}
@@ -159,7 +190,66 @@ export class PageAdminCreate extends LitElement {
               @input=${(e: any) => this.draftRounds = Number(e.target.value)}
             />
           </div>
-          <button class="btn btn-primary" type="submit" ?disabled=${this.loading}>
+          <div class="form-group">
+            <label>Pick Timer (seconds, 0 = no timer)</label>
+            <input
+              type="number"
+              min="0"
+              .value=${String(this.pickTimer)}
+              @input=${(e: any) => this.pickTimer = Number(e.target.value)}
+            />
+          </div>
+          <div class="form-group">
+            <label>Scheduled Draft Time <span class="text-muted" style="font-weight:400;">(informational)</span></label>
+            <input
+              type="datetime-local"
+              .value=${this.scheduledTime}
+              @input=${(e: any) => this.scheduledTime = e.target.value}
+            />
+          </div>
+          <div class="form-group">
+            <label>On Pick Timeout</label>
+            <select .value=${this.onTimeout} @change=${(e: any) => this.onTimeout = e.target.value}>
+              <option value="auto_pick">Auto-pick (best available)</option>
+              <option value="skip_turn">Skip turn</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Role Limits</label>
+            <table class="role-limits-table">
+              <thead>
+                <tr>
+                  <th>Role</th>
+                  <th>Min picks</th>
+                  <th>Max picks</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${ROLE_KEYS.map(role => html`
+                  <tr>
+                    <td>${role}</td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        .value=${String(this.roleLimits[role].min)}
+                        @input=${(e: any) => this.updateRoleLimit(role, 'min', Number(e.target.value))}
+                      />
+                    </td>
+                    <td>
+                      <input
+                        type="number"
+                        min="0"
+                        .value=${String(this.roleLimits[role].max)}
+                        @input=${(e: any) => this.updateRoleLimit(role, 'max', Number(e.target.value))}
+                      />
+                    </td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+          <button class="btn btn-primary" type="submit" ?disabled=${this.loading} style="margin-top:1rem;">
             ${this.loading ? 'Creating...' : 'Create Season →'}
           </button>
         </form>

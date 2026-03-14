@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { api } from '../services/api.js';
-import { getToken } from '../services/auth.js';
+import { getMe, getToken, isAdmin } from '../services/auth.js';
 import { DraftWebSocket } from '../services/ws.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 
@@ -202,6 +202,8 @@ export class PageSnakeDraft extends LitElement {
 
   async connectedCallback() {
     super.connectedCallback();
+    await getMe();
+
     // Load players for the pool
     const result = await api.getPlayers(this.seasonId);
     this.players = result.players;
@@ -222,6 +224,13 @@ export class PageSnakeDraft extends LitElement {
     this.ws.on('pick_undone', () => {});
     this.ws.on('draft_paused', () => { this.paused = true; });
     this.ws.on('draft_resumed', () => { this.paused = false; });
+    this.ws.on('admin_timer_reset', (data: any) => {
+      // Server broadcasts pick_timer_seconds so all clients reset to same value
+      const timerVal = data?.pick_timer_seconds ?? this.draftState?.timer_seconds ?? 0;
+      this.draftState = this.draftState
+        ? { ...this.draftState, timer_seconds: timerVal }
+        : this.draftState;
+    });
     this.ws.on('error', (data: any) => {
       console.error('Draft error:', data.message || data);
     });
@@ -279,10 +288,14 @@ export class PageSnakeDraft extends LitElement {
 
   private togglePause() {
     if (this.paused) {
-      this.ws?.resumeDraft();
+      this.ws?.adminResumeDraft();
     } else {
-      this.ws?.pauseDraft();
+      this.ws?.adminPauseDraft();
     }
+  }
+
+  private adminResetTimer() {
+    this.ws?.adminResetTimer();
   }
 
   private async exportDraft() {
@@ -382,14 +395,17 @@ export class PageSnakeDraft extends LitElement {
               `
             : ''}
 
-          <!-- Commissioner Controls -->
-          <div class="controls">
-            <button class="btn btn-secondary btn-sm" @click=${this.togglePause}>
-              ${this.paused ? 'Resume' : 'Pause'}
-            </button>
-            <button class="btn btn-danger btn-sm" @click=${this.undoLastPick}>Undo Pick</button>
-            <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
-          </div>
+          <!-- Commissioner Controls (admin only) -->
+          ${isAdmin() ? html`
+            <div class="controls">
+              <button class="btn btn-secondary btn-sm" @click=${this.togglePause}>
+                ${this.paused ? 'Resume' : 'Pause'}
+              </button>
+              <button class="btn btn-secondary btn-sm" @click=${this.adminResetTimer}>Reset Timer</button>
+              <button class="btn btn-danger btn-sm" @click=${this.undoLastPick}>Undo Pick</button>
+              <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
+            </div>
+          ` : ''}
 
           <!-- Player Pool -->
           <div class="card" style="padding: 0.75rem;">
