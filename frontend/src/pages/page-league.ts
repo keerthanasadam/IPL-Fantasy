@@ -162,6 +162,18 @@ export class PageLeague extends LitElement {
               `
             : ''
           }
+          ${season.status === 'setup'
+            ? html`
+                <a
+                  href="/season/${season.id}/draft/snake"
+                  class="btn btn-secondary"
+                  style="text-decoration:none;"
+                >
+                  Preview Draft Room
+                </a>
+              `
+            : ''
+          }
           ${this.adminUser && season.status === 'setup'
             ? html`
                 <a
