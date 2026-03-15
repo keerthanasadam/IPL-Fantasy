@@ -265,10 +265,16 @@ export class PageSeason extends LitElement {
     return html`
       <div class="actions">
         ${s.status === 'setup' ? html`
-          <button class="btn btn-primary" @click=${this.startDraft} ?disabled=${this.playerCount === 0}>
-            Start Draft
+          ${isAdmin() ? html`
+            <button class="btn btn-primary" @click=${this.startDraft} ?disabled=${this.playerCount === 0}>
+              Start Draft
+            </button>
+            ${this.playerCount === 0 ? html`<p class="text-muted" style="margin:0;align-self:center;">Import players first (Settings → Players)</p>` : ''}
+          ` : ''}
+          <button class="btn btn-secondary"
+                  @click=${() => window.location.href = `/season/${this.seasonId}/draft/snake`}>
+            Preview Draft Room
           </button>
-          ${this.playerCount === 0 ? html`<p class="text-muted" style="margin:0;align-self:center;">Import players first (Settings → Players)</p>` : ''}
         ` : ''}
         ${s.status === 'drafting' ? html`
           <button class="btn btn-primary" @click=${() => window.location.href = `/season/${this.seasonId}/draft/snake`}>

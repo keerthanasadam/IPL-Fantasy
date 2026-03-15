@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { api } from '../services/api.js';
-import { getMe, getToken, isAdmin } from '../services/auth.js';
+import { getMe, getToken, isAdmin, getCachedUser } from '../services/auth.js';
 import { DraftWebSocket } from '../services/ws.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 
@@ -15,7 +15,7 @@ interface DraftState {
   current_team_name: string | null;
   is_complete: boolean;
   picks: any[];
-  teams: any[];
+  teams: Array<{ id: string; name: string; draft_position: number; owner_id: string | null }>;
   timer_seconds: number;
 }
 
@@ -165,6 +165,30 @@ export class PageSnakeDraft extends LitElement {
         font-size: 1.25rem;
       }
 
+      .preview-banner {
+        background: #1e293b;
+        border: 1px solid #475569;
+        color: #e2e8f0;
+        padding: 0.75rem 1rem;
+        border-radius: 8px;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .preview-banner span { font-weight: 600; }
+
+      .board-header.my-team-header {
+        background: #92400e;
+        outline: 2px solid #f5a623;
+        outline-offset: -2px;
+      }
+
+      .board-cell.my-team-cell {
+        background: rgba(245, 166, 35, 0.07);
+      }
+
       .ws-status {
         display: flex;
         align-items: center;
@@ -193,8 +217,10 @@ export class PageSnakeDraft extends LitElement {
   @state() private filterDesignation = '';
   @state() private wsConnected = false;
   @state() private paused = false;
+  @state() private isDryRun = false;
 
   private ws: DraftWebSocket | null = null;
+  private me: any = null;
 
   onBeforeEnter(location: any) {
     this.seasonId = location.params.seasonId;
@@ -203,6 +229,7 @@ export class PageSnakeDraft extends LitElement {
   async connectedCallback() {
     super.connectedCallback();
     await getMe();
+    this.me = getCachedUser();
 
     // Load players for the pool
     const result = await api.getPlayers(this.seasonId);
@@ -218,6 +245,7 @@ export class PageSnakeDraft extends LitElement {
     this.ws.on('draft_state', (data: DraftState) => {
       this.draftState = data;
       this.paused = (data as any).paused || false;
+      this.isDryRun = data.status === 'setup';
     });
 
     this.ws.on('pick_made', () => {}); // State update follows
@@ -278,20 +306,39 @@ export class PageSnakeDraft extends LitElement {
     return [...new Set(this.players.map((p) => p.designation))].sort();
   }
 
+  private get myTeamId(): string | null {
+    if (!this.me || !this.draftState) return null;
+    const mine = this.draftState.teams.find((t) => t.owner_id === this.me.user_id);
+    return mine?.id ?? null;
+  }
+
+  private get myPicks(): any[] {
+    if (!this.draftState || !this.myTeamId) return [];
+    return this.draftState.picks.filter((p: any) => p.team_id === this.myTeamId);
+  }
+
   private pickPlayer(playerId: string) {
+    if (this.isDryRun) return;
     this.ws?.pick(playerId);
   }
 
   private undoLastPick() {
+    if (this.isDryRun) return;
     this.ws?.undoLastPick();
   }
 
   private togglePause() {
+    if (this.isDryRun) return;
     if (this.paused) {
       this.ws?.adminResumeDraft();
     } else {
       this.ws?.adminPauseDraft();
     }
+  }
+
+  private async startDraft() {
+    await api.startDraft(this.seasonId);
+    // isDryRun flips false automatically when WS broadcasts new draft_state with status 'drafting'
   }
 
   private adminResetTimer() {
@@ -335,7 +382,7 @@ export class PageSnakeDraft extends LitElement {
         const isCurrent = !state.is_complete && state.current_round === r && state.current_team_id === team.id;
 
         rows.push(html`
-          <div class="board-cell ${pick ? 'picked' : ''} ${isCurrent ? 'current' : ''}">
+          <div class="board-cell ${pick ? 'picked' : ''} ${isCurrent ? 'current' : ''} ${team.id === this.myTeamId ? 'my-team-cell' : ''}">
             ${pick
               ? html`
                   <div>
@@ -354,7 +401,7 @@ export class PageSnakeDraft extends LitElement {
     return html`
       <div class="draft-board" style="grid-template-columns: 50px repeat(${teams.length}, 1fr);">
         <div class="board-header" style="background: #334155; color: #e2e8f0;">Rd</div>
-        ${teams.map((t: any) => html`<div class="board-header">${t.name}</div>`)}
+        ${teams.map((t: any) => html`<div class="board-header ${t.id === this.myTeamId ? 'my-team-header' : ''}">${t.name}</div>`)}
         ${rows}
       </div>
     `;
@@ -368,6 +415,14 @@ export class PageSnakeDraft extends LitElement {
         ? html`<div class="complete-banner">Draft Complete!</div>`
         : ''}
       ${this.paused ? html`<div class="paused-banner">Draft Paused</div>` : ''}
+      ${this.isDryRun ? html`
+        <div class="preview-banner">
+          <span>Preview Mode — Draft has not started yet</span>
+          ${isAdmin() ? html`
+            <button class="btn btn-primary btn-sm" @click=${this.startDraft}>Start Draft</button>
+          ` : ''}
+        </div>
+      ` : ''}
 
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
         <h1 style="margin: 0;">Snake Draft</h1>
@@ -394,6 +449,33 @@ export class PageSnakeDraft extends LitElement {
                 </div>
               `
             : ''}
+
+          <!-- My Team panel -->
+          ${this.myTeamId ? html`
+            <div class="card" style="padding: 0.75rem;">
+              <h3 style="margin: 0 0 0.5rem;">My Team</h3>
+              ${this.draftState?.current_team_id === this.myTeamId ? html`
+                <p style="color:#f5a623;font-weight:600;font-size:0.85rem;margin:0 0 0.5rem;">
+                  You're on the clock!
+                </p>
+              ` : ''}
+              ${this.myPicks.length === 0
+                ? html`<p style="color:#64748b;font-size:0.85rem;margin:0;">No picks yet</p>`
+                : this.myPicks.map((p: any) => html`
+                    <div style="display:flex;justify-content:space-between;align-items:center;
+                                padding:0.3rem 0;border-bottom:1px solid #1e293b;">
+                      <div>
+                        <div style="font-size:0.85rem;">${p.player_name}</div>
+                        <div style="font-size:0.7rem;color:#64748b;">
+                          ${p.player_designation} · ${p.player_team}
+                        </div>
+                      </div>
+                      <div style="font-size:0.75rem;color:#64748b;flex-shrink:0;">R${p.round}</div>
+                    </div>
+                  `)
+              }
+            </div>
+          ` : ''}
 
           <!-- Commissioner Controls (admin only) -->
           ${isAdmin() ? html`
@@ -433,7 +515,12 @@ export class PageSnakeDraft extends LitElement {
                       <div class="meta">${p.ipl_team} - ${p.designation}</div>
                     </div>
                     ${!isDrafted && !state?.is_complete
-                      ? html`<button class="pick-btn" @click=${() => this.pickPlayer(p.id)}>Pick</button>`
+                      ? html`<button class="pick-btn"
+                                     ?disabled=${this.isDryRun ||
+                                                 (state && !state.is_complete &&
+                                                  state.current_team_id !== this.myTeamId &&
+                                                  !isAdmin())}
+                                     @click=${() => this.pickPlayer(p.id)}>Pick</button>`
                       : ''}
                   </div>
                 `;

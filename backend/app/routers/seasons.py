@@ -192,7 +192,7 @@ async def delete_season(
 @router.post("/seasons/{season_id}/start-draft", response_model=SeasonResponse)
 async def start_draft(
     season_id: uuid.UUID,
-    current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_admin),
     db: AsyncSession = Depends(get_db),
 ):
     stmt = (

@@ -65,7 +65,12 @@ async def get_draft_state(db: AsyncSession, season_id: uuid.UUID) -> DraftState:
     teams_stmt = select(Team).where(Team.season_id == season_id).order_by(Team.draft_position)
     teams_result = await db.execute(teams_stmt)
     teams = [
-        {"id": str(t.id), "name": t.name, "draft_position": t.draft_position}
+        {
+            "id": str(t.id),
+            "name": t.name,
+            "draft_position": t.draft_position,
+            "owner_id": str(t.owner_id) if t.owner_id else None,
+        }
         for t in teams_result.scalars().all()
     ]
 
@@ -97,7 +102,7 @@ async def get_draft_state(db: AsyncSession, season_id: uuid.UUID) -> DraftState:
         })
 
     total_rounds = (season.draft_config or {}).get("rounds", 15)
-    timer_seconds = (season.draft_config or {}).get("timer_seconds", 0)
+    timer_seconds = (season.draft_config or {}).get("pick_timer_seconds", 0)
     team_count = season.team_count
     total_picks = total_rounds * team_count
     next_pick_number = len(picks) + 1
@@ -107,7 +112,7 @@ async def get_draft_state(db: AsyncSession, season_id: uuid.UUID) -> DraftState:
     current_team_name = None
     current_round = 1
     if not is_complete and teams:
-        current_round, current_team = calculate_snake_turn(next_pick_number, team_count, teams)
+        current_round, current_team = calculate_snake_turn(next_pick_number, len(teams), teams)
         current_team_id = uuid.UUID(current_team["id"])
         current_team_name = current_team["name"]
 

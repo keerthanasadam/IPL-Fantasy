@@ -86,6 +86,9 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                         })
 
                     elif msg_type == "force_pick":
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
                         player_id = uuid.UUID(msg["player_id"])
                         team_id = uuid.UUID(msg["team_id"])
                         user_id = uuid.UUID(user["user_id"]) if user else None
@@ -104,6 +107,9 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                         })
 
                     elif msg_type == "undo_last_pick":
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
                         undone = await undo_last_pick(db, season_id)
                         if undone:
                             await manager.broadcast_to_room(room, {
