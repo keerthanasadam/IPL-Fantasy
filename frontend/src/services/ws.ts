@@ -13,8 +13,11 @@ export class DraftWebSocket {
   }
 
   connect() {
-    const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const url = `${protocol}//${location.host}/ws/draft/${this.seasonId}?token=${this.token}`;
+    const apiUrl = import.meta.env.VITE_API_URL ?? '';
+    const wsBase = apiUrl
+      ? apiUrl.replace(/^http/, 'ws')
+      : `${location.protocol === 'https:' ? 'wss:' : 'ws:'}//${location.host}`;
+    const url = `${wsBase}/ws/draft/${this.seasonId}?token=${this.token}`;
     this.ws = new WebSocket(url);
 
     this.ws.onopen = () => {
