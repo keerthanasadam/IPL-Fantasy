@@ -1,3 +1,6 @@
+# NOTE: This project no longer uses Docker. PostgreSQL and Redis run natively
+# (e.g. via Homebrew). This file is kept for reference only.
+
 services:
   db:
     image: postgres:16-alpine

@@ -333,29 +333,24 @@ export class PageSeason extends LitElement {
       <!-- Draft Rules -->
       <div class="settings-section">
         <h3>Draft Rules</h3>
-        ${!isSetup ? html`<p class="locked-notice">Draft rules are locked after setup.</p>` : ''}
+        ${!isSetup ? html`<p class="locked-notice">Structural draft rules are locked after setup. Pick timer and timeout behavior can still be changed.</p>` : ''}
         <fieldset style="border:none;padding:0;" ?disabled=${!isSetup}>
           <div class="form-group" style="max-width:200px;">
             <label>Draft Rounds</label>
             <input type="number" min="1" .value=${String(this.cfgRounds)}
                    @input=${(e: any) => this.cfgRounds = Number(e.target.value)} />
           </div>
-          <div class="form-group" style="max-width:200px;">
-            <label>Pick Timer (seconds, 0 = no timer)</label>
-            <input type="number" min="0" .value=${String(this.cfgPickTimer)}
-                   @input=${(e: any) => this.cfgPickTimer = Number(e.target.value)} />
-          </div>
+        </fieldset>
+        <div class="form-group" style="max-width:200px;">
+          <label>Pick Timer (seconds, 0 = no timer)</label>
+          <input type="number" min="0" .value=${String(this.cfgPickTimer)}
+                 @input=${(e: any) => this.cfgPickTimer = Number(e.target.value)} />
+        </div>
+        <fieldset style="border:none;padding:0;" ?disabled=${!isSetup}>
           <div class="form-group" style="max-width:280px;">
             <label>Scheduled Draft Time <span class="text-muted" style="font-weight:400;">(informational)</span></label>
             <input type="datetime-local" .value=${this.cfgScheduledTime}
                    @input=${(e: any) => this.cfgScheduledTime = e.target.value} />
-          </div>
-          <div class="form-group" style="max-width:280px;">
-            <label>On Pick Timeout</label>
-            <select .value=${this.cfgOnTimeout} @change=${(e: any) => this.cfgOnTimeout = e.target.value}>
-              <option value="auto_pick">Auto-pick (best available)</option>
-              <option value="skip_turn">Skip turn</option>
-            </select>
           </div>
           <div class="form-group">
             <label>Role Limits</label>
@@ -374,15 +369,20 @@ export class PageSeason extends LitElement {
               </tbody>
             </table>
           </div>
-          ${isSetup ? html`
-            <div style="display:flex;align-items:center;gap:0.75rem;">
-              <button class="btn btn-primary btn-sm" ?disabled=${this.rulesLoading} @click=${this.saveRules}>
-                ${this.rulesLoading ? 'Saving...' : 'Save Draft Rules'}
-              </button>
-              ${this.rulesSuccess ? html`<span class="success-flash">Saved!</span>` : ''}
-            </div>
-          ` : ''}
         </fieldset>
+        <div class="form-group" style="max-width:280px;">
+          <label>On Pick Timeout</label>
+          <select .value=${this.cfgOnTimeout} @change=${(e: any) => this.cfgOnTimeout = e.target.value}>
+            <option value="auto_pick">Auto-pick (best available)</option>
+            <option value="skip_turn">Skip turn</option>
+          </select>
+        </div>
+        <div style="display:flex;align-items:center;gap:0.75rem;">
+          <button class="btn btn-primary btn-sm" ?disabled=${this.rulesLoading} @click=${this.saveRules}>
+            ${this.rulesLoading ? 'Saving...' : 'Save Draft Rules'}
+          </button>
+          ${this.rulesSuccess ? html`<span class="success-flash">Saved!</span>` : ''}
+        </div>
       </div>
 
       <!-- Players -->

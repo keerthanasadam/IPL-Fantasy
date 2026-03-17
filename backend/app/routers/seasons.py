@@ -155,13 +155,22 @@ async def update_season(
     season = result.scalar_one_or_none()
     if not season:
         raise HTTPException(status_code=404, detail="Season not found")
-    if season.status != SeasonStatus.SETUP:
-        raise HTTPException(status_code=400, detail="Cannot modify season after setup")
+    is_setup = season.status == SeasonStatus.SETUP
 
     if body.label is not None:
+        if not is_setup:
+            raise HTTPException(status_code=400, detail="Cannot rename season after setup")
         season.label = body.label
+
     if body.draft_config is not None:
-        season.draft_config = body.draft_config.model_dump(exclude_none=True)
+        if is_setup:
+            season.draft_config = body.draft_config.model_dump(exclude_none=True)
+        else:
+            # Allow runtime-only fields to be updated during an active draft
+            cfg = dict(season.draft_config or {})
+            cfg["pick_timer_seconds"] = body.draft_config.pick_timer_seconds
+            cfg["on_timeout"] = body.draft_config.on_timeout
+            season.draft_config = cfg
 
     await db.commit()
     await db.refresh(season)

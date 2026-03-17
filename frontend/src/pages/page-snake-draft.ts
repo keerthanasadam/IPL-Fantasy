@@ -218,9 +218,12 @@ export class PageSnakeDraft extends LitElement {
   @state() private wsConnected = false;
   @state() private paused = false;
   @state() private isDryRun = false;
+  @state() private timerRemaining = 0;
 
   private ws: DraftWebSocket | null = null;
   private me: any = null;
+  private timerInterval: number | null = null;
+  private lastPickNumber = 0;
 
   onBeforeEnter(location: any) {
     this.seasonId = location.params.seasonId;
@@ -243,21 +246,41 @@ export class PageSnakeDraft extends LitElement {
     this.ws.on('disconnected', () => { this.wsConnected = false; });
 
     this.ws.on('draft_state', (data: DraftState) => {
+      const prevPickNumber = this.lastPickNumber;
       this.draftState = data;
       this.paused = (data as any).paused || false;
       this.isDryRun = data.status === 'setup';
+
+      // Start timer when pick advances (new pick made) or on first load while drafting
+      if (data.status === 'drafting' && data.timer_seconds > 0 && !this.paused) {
+        if (data.current_pick_number !== prevPickNumber) {
+          this.lastPickNumber = data.current_pick_number;
+          this.startTimer(data.timer_seconds);
+        }
+      } else {
+        this.lastPickNumber = data.current_pick_number;
+        this.stopTimer();
+        if (data.timer_seconds > 0) this.timerRemaining = data.timer_seconds;
+      }
     });
 
     this.ws.on('pick_made', () => {}); // State update follows
     this.ws.on('pick_undone', () => {});
-    this.ws.on('draft_paused', () => { this.paused = true; });
-    this.ws.on('draft_resumed', () => { this.paused = false; });
+    this.ws.on('draft_paused', () => {
+      this.paused = true;
+      this.stopTimer();
+    });
+    this.ws.on('draft_resumed', () => {
+      this.paused = false;
+      const secs = this.draftState?.timer_seconds ?? 0;
+      if (secs > 0) this.startTimer(secs);
+    });
     this.ws.on('admin_timer_reset', (data: any) => {
-      // Server broadcasts pick_timer_seconds so all clients reset to same value
       const timerVal = data?.pick_timer_seconds ?? this.draftState?.timer_seconds ?? 0;
       this.draftState = this.draftState
         ? { ...this.draftState, timer_seconds: timerVal }
         : this.draftState;
+      if (timerVal > 0) this.startTimer(timerVal);
     });
     this.ws.on('error', (data: any) => {
       console.error('Draft error:', data.message || data);
@@ -269,6 +292,26 @@ export class PageSnakeDraft extends LitElement {
   disconnectedCallback() {
     super.disconnectedCallback();
     this.ws?.disconnect();
+    this.stopTimer();
+  }
+
+  private startTimer(seconds: number) {
+    this.stopTimer();
+    this.timerRemaining = seconds;
+    this.timerInterval = window.setInterval(() => {
+      if (this.timerRemaining > 0) {
+        this.timerRemaining--;
+      } else {
+        this.stopTimer();
+      }
+    }, 1000);
+  }
+
+  private stopTimer() {
+    if (this.timerInterval !== null) {
+      clearInterval(this.timerInterval);
+      this.timerInterval = null;
+    }
   }
 
   private get draftedPlayerIds(): Set<string> {
@@ -446,6 +489,12 @@ export class PageSnakeDraft extends LitElement {
                   <div class="pick-info">
                     Pick #${state.current_pick_number} / Round ${state.current_round} of ${state.total_rounds}
                   </div>
+                  ${state.timer_seconds > 0 && !this.isDryRun ? html`
+                    <div style="margin-top: 0.5rem; font-size: 1.5rem; font-weight: 700;
+                                color: ${this.timerRemaining <= 10 ? '#ef4444' : '#e2e8f0'};">
+                      ${this.timerRemaining}s
+                    </div>
+                  ` : ''}
                 </div>
               `
             : ''}
@@ -480,11 +529,11 @@ export class PageSnakeDraft extends LitElement {
           <!-- Commissioner Controls (admin only) -->
           ${isAdmin() ? html`
             <div class="controls">
-              <button class="btn btn-secondary btn-sm" @click=${this.togglePause}>
+              <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.togglePause}>
                 ${this.paused ? 'Resume' : 'Pause'}
               </button>
-              <button class="btn btn-secondary btn-sm" @click=${this.adminResetTimer}>Reset Timer</button>
-              <button class="btn btn-danger btn-sm" @click=${this.undoLastPick}>Undo Pick</button>
+              <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.adminResetTimer}>Reset Timer</button>
+              <button class="btn btn-danger btn-sm" ?disabled=${this.isDryRun} @click=${this.undoLastPick}>Undo Pick</button>
               <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
             </div>
           ` : ''}
@@ -514,12 +563,11 @@ export class PageSnakeDraft extends LitElement {
                       <div class="name">${p.name}</div>
                       <div class="meta">${p.ipl_team} - ${p.designation}</div>
                     </div>
-                    ${!isDrafted && !state?.is_complete
+                    ${!isDrafted && !state?.is_complete && !this.isDryRun
                       ? html`<button class="pick-btn"
-                                     ?disabled=${this.isDryRun ||
-                                                 (state && !state.is_complete &&
+                                     ?disabled=${state && !state.is_complete &&
                                                   state.current_team_id !== this.myTeamId &&
-                                                  !isAdmin())}
+                                                  !isAdmin()}
                                      @click=${() => this.pickPlayer(p.id)}>Pick</button>`
                       : ''}
                   </div>
