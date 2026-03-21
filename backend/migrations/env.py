@@ -42,10 +42,14 @@ async def run_async_migrations():
 
 
 def run_migrations_online() -> None:
-    # For Alembic CLI (sync), use the sync URL directly
-    from sqlalchemy import create_engine
-    connectable = create_engine(config.get_main_option("sqlalchemy.url"))
+    from sqlalchemy import create_engine, text
+    connectable = create_engine(
+        config.get_main_option("sqlalchemy.url"),
+        connect_args={"connect_timeout": 10},
+    )
     with connectable.connect() as connection:
+        connection.execute(text("SET lock_timeout = '30s'"))
+        connection.execute(text("SET statement_timeout = '120s'"))
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
