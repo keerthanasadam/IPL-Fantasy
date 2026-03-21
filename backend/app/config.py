@@ -1,3 +1,4 @@
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 
@@ -12,6 +13,20 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
 
     model_config = {"env_file": ".env", "extra": "ignore"}
+
+    @model_validator(mode="after")
+    def fix_database_urls(self) -> "Settings":
+        # Railway provides postgresql:// — asyncpg requires postgresql+asyncpg://
+        if self.DATABASE_URL.startswith("postgresql://"):
+            self.DATABASE_URL = self.DATABASE_URL.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        # Ensure sync URL never has the asyncpg driver prefix
+        if self.DATABASE_URL_SYNC.startswith("postgresql+asyncpg://"):
+            self.DATABASE_URL_SYNC = self.DATABASE_URL_SYNC.replace(
+                "postgresql+asyncpg://", "postgresql://", 1
+            )
+        return self
 
 
 settings = Settings()
