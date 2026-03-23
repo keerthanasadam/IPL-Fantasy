@@ -3,12 +3,12 @@ import { css } from 'lit';
 export const sharedStyles = css`
   :host {
     display: block;
-    color: #e2e8f0;
+    color: var(--text-primary);
   }
 
   .card {
-    background: #1e293b;
-    border: 1px solid #334155;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
     border-radius: 12px;
     padding: 1.5rem;
   }
@@ -28,16 +28,16 @@ export const sharedStyles = css`
   }
 
   .btn-primary {
-    background: #f5a623;
-    color: #0f172a;
+    background: var(--accent);
+    color: var(--accent-dark);
   }
-  .btn-primary:hover { background: #e09000; }
+  .btn-primary:hover { background: var(--accent-hover); }
 
   .btn-secondary {
-    background: #334155;
-    color: #e2e8f0;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
   }
-  .btn-secondary:hover { background: #475569; }
+  .btn-secondary:hover { background: var(--bg-secondary-hover); }
 
   .btn-danger {
     background: #ef4444;
@@ -48,36 +48,36 @@ export const sharedStyles = css`
   .btn-sm { padding: 0.4rem 0.8rem; font-size: 0.8rem; }
 
   input, select {
-    background: #0f172a;
-    border: 1px solid #334155;
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
     border-radius: 8px;
     padding: 0.6rem 0.8rem;
-    color: #e2e8f0;
+    color: var(--text-primary);
     font-size: 0.9rem;
     width: 100%;
   }
   input:focus, select:focus {
     outline: none;
-    border-color: #f5a623;
+    border-color: var(--accent);
   }
 
   label {
     display: block;
     margin-bottom: 0.4rem;
     font-size: 0.85rem;
-    color: #94a3b8;
+    color: var(--text-muted);
   }
 
   .form-group {
     margin-bottom: 1rem;
   }
 
-  h1 { font-size: 1.75rem; color: #f5a623; margin-bottom: 1rem; }
-  h2 { font-size: 1.35rem; color: #e2e8f0; margin-bottom: 0.75rem; }
-  h3 { font-size: 1.1rem; color: #cbd5e1; margin-bottom: 0.5rem; }
+  h1 { font-size: 1.75rem; color: var(--accent); margin-bottom: 1rem; }
+  h2 { font-size: 1.35rem; color: var(--text-heading-2); margin-bottom: 0.75rem; }
+  h3 { font-size: 1.1rem; color: var(--text-heading-3); margin-bottom: 0.5rem; }
 
-  .text-muted { color: #64748b; }
-  .text-gold { color: #f5a623; }
+  .text-muted { color: var(--text-subtle); }
+  .text-gold { color: var(--accent); }
   .text-green { color: #22c55e; }
   .text-red { color: #ef4444; }
 
@@ -98,8 +98,8 @@ export const sharedStyles = css`
     font-size: 0.75rem;
     font-weight: 600;
   }
-  .badge-gold { background: #f5a623; color: #0f172a; }
+  .badge-gold { background: var(--accent); color: var(--accent-dark); }
   .badge-blue { background: #3b82f6; color: white; }
   .badge-green { background: #22c55e; color: #0f172a; }
-  .badge-gray { background: #475569; color: #e2e8f0; }
+  .badge-gray { background: var(--bg-secondary); color: var(--text-primary); }
 `;

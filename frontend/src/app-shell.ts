@@ -1,6 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement } from 'lit/decorators.js';
 import { Router } from '@vaadin/router';
+import { initTheme } from './services/theme.js';
 
 import './components/nav-bar.js';
 import './pages/page-home.js';
@@ -26,6 +27,11 @@ export class AppShell extends LitElement {
       padding: 1rem;
     }
   `;
+
+  connectedCallback() {
+    super.connectedCallback();
+    initTheme();
+  }
 
   firstUpdated() {
     const outlet = this.shadowRoot?.getElementById('outlet');
