@@ -1,4 +1,4 @@
-import { LitElement, html } from 'lit';
+import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import { api } from '../services/api.js';
@@ -6,7 +6,71 @@ import { guardRoute } from '../services/auth.js';
 
 @customElement('page-my-leagues')
 export class PageMyLeagues extends LitElement {
-  static styles = [sharedStyles];
+  static styles = [
+    sharedStyles,
+    css`
+      .page-wrap {
+        max-width: 700px;
+        margin: 2rem auto;
+        padding: 0 1rem;
+      }
+
+      /* Season inner card */
+      .season-row {
+        background: var(--bg-primary);
+        border-radius: 8px;
+        padding: 1rem;
+        margin-bottom: 0.75rem;
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 1rem;
+      }
+      .season-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: 0.5rem;
+        flex-wrap: wrap;
+      }
+      .season-label {
+        font-weight: 600;
+      }
+      .season-detail {
+        font-size: 0.85rem;
+        margin-top: 0.25rem;
+      }
+      .scheduled-date {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.8rem;
+        color: var(--text-muted);
+        background: var(--bg-secondary);
+        border-radius: 6px;
+        padding: 0.2rem 0.5rem;
+        margin-top: 0.4rem;
+      }
+      .season-btn {
+        flex-shrink: 0;
+      }
+
+      /* Completed season — slightly dimmed */
+      .season-row.completed {
+        opacity: 0.8;
+      }
+
+      @media (max-width: 480px) {
+        .season-row {
+          flex-direction: column;
+        }
+        .season-btn a {
+          display: block;
+          text-align: center;
+        }
+      }
+    `,
+  ];
 
   @state() private leagues: any[] = [];
   @state() private loading = true;
@@ -39,9 +103,21 @@ export class PageMyLeagues extends LitElement {
     return classes[status] ?? 'badge-gray';
   }
 
+  private formatDraftDate(isoString: string): string {
+    try {
+      const d = new Date(isoString);
+      return d.toLocaleString(undefined, {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+      });
+    } catch {
+      return isoString;
+    }
+  }
+
   render() {
     return html`
-      <div style="max-width: 700px; margin: 2rem auto; padding: 0 1rem;">
+      <div class="page-wrap">
         <h1>My Leagues</h1>
 
         ${this.loading ? html`<p class="text-muted">Loading...</p>` : ''}
@@ -63,7 +139,7 @@ export class PageMyLeagues extends LitElement {
 
         ${this.leagues.map(league => html`
           <div class="card" style="margin-bottom:1rem;">
-            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:0.75rem;flex-wrap:wrap;gap:0.5rem;">
               <h2 style="margin:0;">${league.name}</h2>
               <span class="badge ${league.user_role === 'commissioner' ? 'badge-gold' : 'badge-blue'}">
                 ${league.user_role === 'commissioner' ? 'Commissioner' : 'Member'}
@@ -72,44 +148,52 @@ export class PageMyLeagues extends LitElement {
 
             ${league.seasons.length === 0
               ? html`<p class="text-muted">No seasons yet.</p>`
-              : league.seasons.map((season: any) => html`
-                  <div style="
-                    background:#0f172a;
-                    border-radius:8px;
-                    padding:1rem;
-                    margin-bottom:0.75rem;
-                    display:flex;
-                    align-items:flex-start;
-                    justify-content:space-between;
-                    gap:1rem;
-                  ">
-                    <div>
-                      <div style="display:flex;align-items:center;gap:0.75rem;margin-bottom:0.5rem;">
-                        <span style="font-weight:600;">📅 ${season.label}</span>
-                        <span class="badge ${this.statusBadge(season.status)}">${season.status.toUpperCase()}</span>
+              : league.seasons.map((season: any) => {
+                  const isCompleted = season.status === 'completed' || season.status === 'archived';
+                  const scheduledTime: string | undefined = season.draft_config?.scheduled_draft_time;
+
+                  return html`
+                    <div class="season-row ${isCompleted ? 'completed' : ''}">
+                      <div style="flex:1;min-width:0;">
+                        <div class="season-meta">
+                          <span class="season-label">📅 ${season.label}</span>
+                          <span class="badge ${this.statusBadge(season.status)}">
+                            ${isCompleted ? '✓ COMPLETED' : season.status.toUpperCase()}
+                          </span>
+                        </div>
+
+                        ${season.my_team
+                          ? html`
+                              <div class="text-muted season-detail">
+                                👤 My Team: <strong style="color:var(--text-primary)">${season.my_team.name}</strong>
+                                &nbsp;·&nbsp; Position: #${season.my_team.draft_position}
+                              </div>
+                            `
+                          : html`<div class="text-muted season-detail">No team joined yet</div>`
+                        }
+                        <div class="text-muted season-detail">
+                          👥 ${season.my_team ? '1' : '0'}/${season.team_count} teams
+                        </div>
+
+                        ${scheduledTime ? html`
+                          <div class="scheduled-date">
+                            🕐 Draft: ${this.formatDraftDate(scheduledTime)}
+                          </div>
+                        ` : ''}
                       </div>
-                      ${season.my_team
-                        ? html`
-                            <div class="text-muted" style="font-size:0.85rem;">
-                              👤 My Team: <strong style="color:#e2e8f0">${season.my_team.name}</strong>
-                              &nbsp;·&nbsp; Position: #${season.my_team.draft_position}
-                            </div>
-                          `
-                        : html`<div class="text-muted" style="font-size:0.85rem;">No team joined yet</div>`
-                      }
-                      <div class="text-muted" style="font-size:0.85rem;margin-top:0.25rem;">
-                        👥 ${season.my_team ? '1' : '0'}/${season.team_count} teams
+
+                      <div class="season-btn">
+                        <a
+                          href="/league/${league.id}"
+                          class="btn btn-secondary btn-sm"
+                          style="text-decoration:none;white-space:nowrap;"
+                        >
+                          Go to Season →
+                        </a>
                       </div>
                     </div>
-                    <a
-                      href="/league/${league.id}"
-                      class="btn btn-secondary btn-sm"
-                      style="text-decoration:none;white-space:nowrap;"
-                    >
-                      Go to Season →
-                    </a>
-                  </div>
-                `)
+                  `;
+                })
             }
           </div>
         `)}

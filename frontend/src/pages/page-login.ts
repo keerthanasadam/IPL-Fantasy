@@ -8,18 +8,22 @@ export class PageLogin extends LitElement {
   static styles = [
     sharedStyles,
     css`
-      :host { display: flex; justify-content: center; padding: 4rem 0; }
+      :host { display: flex; justify-content: center; padding: 4rem 1rem; }
       .card { width: 100%; max-width: 400px; }
       .tabs { display: flex; gap: 0; margin-bottom: 1.5rem; }
       .tab {
         flex: 1; padding: 0.6rem; text-align: center;
-        background: #0f172a; border: 1px solid #334155;
-        cursor: pointer; font-weight: 600; color: #94a3b8;
+        background: var(--bg-input); border: 1px solid var(--border-color);
+        cursor: pointer; font-weight: 600; color: var(--text-muted);
       }
       .tab:first-child { border-radius: 8px 0 0 8px; }
       .tab:last-child { border-radius: 0 8px 8px 0; }
-      .tab.active { background: #f5a623; color: #0f172a; border-color: #f5a623; }
+      .tab.active { background: var(--accent); color: var(--accent-dark); border-color: var(--accent); }
       .error { color: #ef4444; font-size: 0.85rem; margin-bottom: 1rem; }
+
+      @media (max-width: 640px) {
+        :host { padding: 2rem 1rem; }
+      }
     `,
   ];
 
@@ -75,8 +79,8 @@ export class PageLogin extends LitElement {
               `
             : ''}
           <div class="form-group">
-            <label>Email</label>
-            <input type="email" .value=${this.email} @input=${(e: any) => (this.email = e.target.value)} required />
+            <label>Username</label>
+            <input type="text" .value=${this.email} @input=${(e: any) => (this.email = e.target.value)} required />
           </div>
           <div class="form-group">
             <label>Password</label>

@@ -91,6 +91,14 @@ export const sharedStyles = css`
   .grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
   .grid-3 { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1rem; }
 
+  @media (max-width: 640px) {
+    .grid-2 { grid-template-columns: 1fr; }
+    .grid-3 { grid-template-columns: 1fr; }
+    h1 { font-size: 1.4rem; }
+    h2 { font-size: 1.15rem; }
+    .card { padding: 1rem; }
+  }
+
   .badge {
     display: inline-block;
     padding: 0.2rem 0.6rem;

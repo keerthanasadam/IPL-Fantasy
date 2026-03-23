@@ -47,6 +47,7 @@ class SeasonInLeagueMine(BaseModel):
     status: str
     team_count: int
     invite_code: str | None
+    draft_config: dict | None = None
     my_team: TeamInLeagueMine | None
 
 
