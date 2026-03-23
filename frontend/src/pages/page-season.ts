@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { api } from '../services/api.js';
-import { getMe, isAdmin } from '../services/auth.js';
+import { getMe, getCachedUser, isAdmin } from '../services/auth.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import '../components/csv-uploader.js';
 
@@ -20,7 +20,59 @@ export class PageSeason extends LitElement {
 
       .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
       .team-card { padding: 1rem; }
-      .team-card .pos { font-size: 1.5rem; font-weight: 700; color: #f5a623; }
+      .team-card .pos { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+      .my-team-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        background: var(--accent);
+        color: var(--accent-dark);
+        border-radius: 4px;
+        padding: 0.1rem 0.4rem;
+        margin-bottom: 0.35rem;
+      }
+      .edit-team-btn {
+        background: none;
+        border: none;
+        cursor: pointer;
+        color: var(--text-muted);
+        font-size: 0.8rem;
+        padding: 0 0.2rem;
+        opacity: 0.7;
+        transition: opacity 0.15s;
+        vertical-align: middle;
+      }
+      .edit-team-btn:hover { opacity: 1; color: var(--accent); }
+      .rename-row {
+        display: flex;
+        flex-direction: column;
+        gap: 0.35rem;
+        margin-top: 0.4rem;
+      }
+      .rename-row input {
+        width: 100%;
+        padding: 0.3rem 0.5rem;
+        font-size: 0.85rem;
+        border: 1px solid var(--accent);
+        border-radius: 6px;
+        background: var(--bg-input);
+        color: var(--text-primary);
+        outline: none;
+      }
+      .rename-actions { display: flex; gap: 0.35rem; }
+      .rename-save {
+        background: var(--accent); color: var(--accent-dark);
+        border: none; border-radius: 6px; padding: 0.25rem 0.6rem;
+        font-size: 0.78rem; font-weight: 600; cursor: pointer;
+      }
+      .rename-save:disabled { opacity: 0.6; cursor: default; }
+      .rename-cancel {
+        background: var(--bg-secondary); color: var(--text-primary);
+        border: none; border-radius: 6px; padding: 0.25rem 0.6rem;
+        font-size: 0.78rem; cursor: pointer;
+      }
+      .rename-err { font-size: 0.75rem; color: #ef4444; }
+      .rename-ok  { font-size: 0.75rem; color: #22c55e; }
       .actions { display: flex; gap: 0.75rem; margin: 1.5rem 0; flex-wrap: wrap; }
       .section { margin-top: 2rem; }
       .player-count { font-size: 2rem; font-weight: 700; color: #f5a623; }
@@ -79,6 +131,14 @@ export class PageSeason extends LitElement {
 
   @state() private error = '';
 
+  // Team rename (season home tab)
+  @state() private renameTeamId: string | null = null;
+  @state() private renameTeamValue = '';
+  @state() private renameTeamSaving = false;
+  @state() private renameTeamError = '';
+  @state() private renameTeamSaved: string | null = null;  // teamId of last save
+  private currentUserId: string | null = null;
+
   onBeforeEnter(location: any) {
     this.seasonId = location.params.seasonId;
   }
@@ -86,6 +146,7 @@ export class PageSeason extends LitElement {
   async connectedCallback() {
     super.connectedCallback();
     await getMe();
+    this.currentUserId = getCachedUser()?.id ?? null;
     await this.load();
   }
 
@@ -190,6 +251,56 @@ export class PageSeason extends LitElement {
     }
   }
 
+  private startTeamRename(teamId: string, currentName: string) {
+    this.renameTeamId = teamId;
+    this.renameTeamValue = currentName;
+    this.renameTeamSaving = false;
+    this.renameTeamError = '';
+    this.updateComplete.then(() => {
+      const input = this.shadowRoot?.querySelector<HTMLInputElement>('.rename-row input');
+      input?.focus();
+      input?.select();
+    });
+  }
+
+  private cancelTeamRename() {
+    this.renameTeamId = null;
+    this.renameTeamError = '';
+  }
+
+  private async saveTeamRename() {
+    if (!this.renameTeamId) return;
+    const name = this.renameTeamValue.trim();
+    if (!name) { this.renameTeamError = 'Name cannot be empty.'; return; }
+    this.renameTeamSaving = true;
+    this.renameTeamError = '';
+    try {
+      await api.updateTeam(this.renameTeamId, { name });
+      // Patch local season data
+      if (this.season?.teams) {
+        this.season = {
+          ...this.season,
+          teams: this.season.teams.map((t: any) =>
+            t.id === this.renameTeamId ? { ...t, name } : t
+          ),
+        };
+      }
+      const savedId = this.renameTeamId;
+      this.renameTeamId = null;
+      this.renameTeamSaved = savedId;
+      setTimeout(() => { this.renameTeamSaved = null; }, 2500);
+    } catch (err: any) {
+      this.renameTeamError = err.message || 'Failed to save.';
+    } finally {
+      this.renameTeamSaving = false;
+    }
+  }
+
+  private handleTeamRenameKey(e: KeyboardEvent) {
+    if (e.key === 'Enter') this.saveTeamRename();
+    if (e.key === 'Escape') this.cancelTeamRename();
+  }
+
   private async confirmClearPlayers() {
     this.clearPlayersLoading = true;
     this.error = '';
@@ -247,14 +358,55 @@ export class PageSeason extends LitElement {
       <div class="section">
         <h2>Teams (Draft Order)</h2>
         <div class="team-grid">
-          ${(s.teams || []).map(
-            (t: any) => html`
+          ${(s.teams || []).map((t: any) => {
+            const isMyTeam = this.currentUserId && t.owner_id === this.currentUserId;
+            const isRenaming = this.renameTeamId === t.id;
+
+            return html`
               <div class="card team-card">
                 <div class="pos">#${t.draft_position}</div>
-                <div>${t.name}</div>
+                ${isMyTeam ? html`<div class="my-team-badge">MY TEAM</div>` : ''}
+                ${isRenaming
+                  ? html`
+                      <div class="rename-row">
+                        <input
+                          type="text"
+                          .value=${this.renameTeamValue}
+                          @input=${(e: any) => { this.renameTeamValue = e.target.value; }}
+                          @keydown=${this.handleTeamRenameKey}
+                          ?disabled=${this.renameTeamSaving}
+                        />
+                        <div class="rename-actions">
+                          <button class="rename-save" ?disabled=${this.renameTeamSaving}
+                                  @click=${this.saveTeamRename}>
+                            ${this.renameTeamSaving ? '…' : 'Save'}
+                          </button>
+                          <button class="rename-cancel" ?disabled=${this.renameTeamSaving}
+                                  @click=${this.cancelTeamRename}>
+                            Cancel
+                          </button>
+                        </div>
+                        ${this.renameTeamError
+                          ? html`<span class="rename-err">${this.renameTeamError}</span>`
+                          : ''}
+                      </div>
+                    `
+                  : html`
+                      <div>
+                        ${t.name}
+                        ${isMyTeam ? html`
+                          <button class="edit-team-btn" title="Rename your team"
+                                  @click=${() => this.startTeamRename(t.id, t.name)}>✏️</button>
+                          ${this.renameTeamSaved === t.id
+                            ? html`<span class="rename-ok">Saved!</span>`
+                            : ''}
+                        ` : ''}
+                      </div>
+                    `
+                }
               </div>
-            `
-          )}
+            `;
+          })}
         </div>
       </div>
     `;

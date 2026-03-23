@@ -1,13 +1,14 @@
 import random
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user, get_db
 from app.models.season import Season
 from app.models.team import Team
+from app.models.user import User
 from app.schemas.team import DraftOrderUpdate, TeamResponse, TeamUpdate
 
 router = APIRouter(prefix="/api", tags=["teams"])
@@ -37,8 +38,22 @@ async def update_team(
     if not team:
         raise HTTPException(status_code=404, detail="Team not found")
 
+    # Ownership guard: only the team owner can rename; admins bypass
+    user_id = uuid.UUID(current_user["user_id"])
+    if team.owner_id is not None and team.owner_id != user_id:
+        user_stmt = select(User).where(User.id == user_id)
+        user_result = await db.execute(user_stmt)
+        user_obj = user_result.scalar_one_or_none()
+        if not user_obj or not user_obj.is_admin:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You don't own this team",
+            )
+
     if body.name is not None:
-        team.name = body.name
+        team.name = body.name.strip()
+        if not team.name:
+            raise HTTPException(status_code=400, detail="Team name cannot be blank")
     if body.owner_id is not None:
         team.owner_id = body.owner_id
 
