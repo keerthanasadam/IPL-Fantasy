@@ -125,6 +125,11 @@ export class PageSeason extends LitElement {
   @state() private rulesLoading = false;
   @state() private rulesSuccess = false;
 
+  // Settings — Draft Order
+  @state() private draftOrderTeams: any[] = [];
+  @state() private draftOrderSaving = false;
+  @state() private draftOrderSuccess = false;
+
   // Settings — Players
   @state() private showClearConfirm = false;
   @state() private clearPlayersLoading = false;
@@ -157,6 +162,9 @@ export class PageSeason extends LitElement {
     this.playerCount = players.total;
     this._syncDraftConfigFields();
     this.renameLabel = this.season.label;
+    this.draftOrderTeams = [...(this.season.teams || [])].sort(
+      (a: any, b: any) => a.draft_position - b.draft_position
+    );
   }
 
   private _syncDraftConfigFields() {
@@ -172,6 +180,31 @@ export class PageSeason extends LitElement {
       BOWL: rl.BOWL ? { min: rl.BOWL.min, max: rl.BOWL.max } : { min: 3, max: 6 },
       AR:   rl.AR   ? { min: rl.AR.min,   max: rl.AR.max   } : { min: 1, max: 4 },
     };
+  }
+
+  private moveDraftTeam(index: number, direction: -1 | 1) {
+    const arr = [...this.draftOrderTeams];
+    const swapIdx = index + direction;
+    if (swapIdx < 0 || swapIdx >= arr.length) return;
+    [arr[index], arr[swapIdx]] = [arr[swapIdx], arr[index]];
+    this.draftOrderTeams = arr;
+  }
+
+  private async saveDraftOrder() {
+    this.draftOrderSaving = true;
+    try {
+      const payload = this.draftOrderTeams.map((t: any, i: number) => ({
+        team_id: t.id,
+        draft_position: i + 1,
+      }));
+      await api.updateDraftOrder(this.seasonId, payload);
+      this.draftOrderSuccess = true;
+      setTimeout(() => { this.draftOrderSuccess = false; }, 2000);
+    } catch (e: any) {
+      this.error = e.message;
+    } finally {
+      this.draftOrderSaving = false;
+    }
   }
 
   private updateCfgRoleLimit(role: RoleKey, field: 'min' | 'max', value: number) {
@@ -536,6 +569,36 @@ export class PageSeason extends LitElement {
           ${this.rulesSuccess ? html`<span class="success-flash">Saved!</span>` : ''}
         </div>
       </div>
+
+      <!-- Draft Order -->
+      ${isSetup ? html`
+        <div class="settings-section">
+          <h3>Draft Order</h3>
+          <p class="text-muted" style="font-size:0.85rem;margin-bottom:0.75rem;">
+            Drag to reorder or use the arrows. Position 1 picks first in round 1.
+          </p>
+          ${this.draftOrderTeams.map((t: any, i: number) => html`
+            <div style="display:flex;align-items:center;gap:0.5rem;padding:0.35rem 0;
+                        border-bottom:1px solid #1e293b;">
+              <span style="width:1.5rem;color:#64748b;font-size:0.8rem;flex-shrink:0;">${i + 1}</span>
+              <span style="flex:1;font-size:0.9rem;">${t.name}</span>
+              <button class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem;"
+                      ?disabled=${i === 0}
+                      @click=${() => this.moveDraftTeam(i, -1)}>↑</button>
+              <button class="btn btn-secondary btn-sm" style="padding:0.15rem 0.4rem;"
+                      ?disabled=${i === this.draftOrderTeams.length - 1}
+                      @click=${() => this.moveDraftTeam(i, 1)}>↓</button>
+            </div>
+          `)}
+          <div style="display:flex;align-items:center;gap:0.75rem;margin-top:0.75rem;">
+            <button class="btn btn-primary btn-sm" ?disabled=${this.draftOrderSaving}
+                    @click=${this.saveDraftOrder}>
+              ${this.draftOrderSaving ? 'Saving...' : 'Save Order'}
+            </button>
+            ${this.draftOrderSuccess ? html`<span class="success-flash">Saved!</span>` : ''}
+          </div>
+        </div>
+      ` : ''}
 
       <!-- Players -->
       <div class="settings-section">

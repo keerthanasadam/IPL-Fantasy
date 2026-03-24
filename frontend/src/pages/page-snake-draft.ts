@@ -1,5 +1,5 @@
 import { LitElement, html, css } from 'lit';
-import { customElement, property, state } from 'lit/decorators.js';
+import { customElement, state } from 'lit/decorators.js';
 import { api } from '../services/api.js';
 import { getMe, getToken, isAdmin, getCachedUser, guardRoute } from '../services/auth.js';
 import { DraftWebSocket } from '../services/ws.js';
@@ -17,6 +17,8 @@ interface DraftState {
   picks: any[];
   teams: Array<{ id: string; name: string; draft_position: number; owner_id: string | null }>;
   timer_seconds: number;
+  next_team_id: string | null;
+  next_team_name: string | null;
 }
 
 @customElement('page-snake-draft')
@@ -252,6 +254,7 @@ export class PageSnakeDraft extends LitElement {
 
   @state() private seasonId = '';
   @state() private draftState: DraftState | null = null;
+  @state() private _redirectScheduled = false;
   @state() private players: any[] = [];
   @state() private searchQuery = '';
   @state() private filterTeam = '';
@@ -296,6 +299,14 @@ export class PageSnakeDraft extends LitElement {
       this.paused = (data as any).paused || false;
       this.isDryRun = data.status === 'setup';
       this.initViewingTeam();
+
+      // Auto-redirect to season summary when draft completes
+      if (data.is_complete && !this._redirectScheduled) {
+        this._redirectScheduled = true;
+        setTimeout(() => {
+          window.location.href = `/season/${this.seasonId}`;
+        }, 3000);
+      }
 
       // Start timer when pick advances (new pick made) or on first load while drafting
       if (data.status === 'drafting' && data.timer_seconds > 0 && !this.paused) {
@@ -466,6 +477,10 @@ export class PageSnakeDraft extends LitElement {
     this.ws?.adminResetTimer();
   }
 
+  private endDraft() {
+    this.ws?.adminEndDraft();
+  }
+
   private async exportDraft() {
     const res = await api.exportDraft(this.seasonId);
     if (res.ok) {
@@ -484,7 +499,6 @@ export class PageSnakeDraft extends LitElement {
     if (!state) return html`<p>Loading board...</p>`;
 
     const teams = state.teams;
-    const cols = teams.length + 1; // +1 for round label column
 
     // Build a pick map: key = `${round}-${teamId}`
     const pickMap = new Map<string, any>();
@@ -494,11 +508,9 @@ export class PageSnakeDraft extends LitElement {
 
     const rows = [];
     for (let r = 1; r <= state.total_rounds; r++) {
-      const isEvenRound = r % 2 === 0;
-      const orderedTeams = isEvenRound ? [...teams].reverse() : teams;
-
       rows.push(html`<div class="board-round">R${r}</div>`);
-      for (const team of orderedTeams) {
+      // Always iterate teams in header order; pickMap lookup handles who picked what
+      for (const team of teams) {
         const pick = pickMap.get(`${r}-${team.id}`);
         const isCurrent = !state.is_complete && state.current_round === r && state.current_team_id === team.id;
 
@@ -580,6 +592,11 @@ export class PageSnakeDraft extends LitElement {
                       ${this.timerRemaining}s
                     </div>
                   ` : ''}
+                  ${state.next_team_name ? html`
+                    <div style="margin-top: 0.4rem; font-size: 0.8rem; color: #64748b;">
+                      Up next: <span style="color: #e2e8f0; font-weight: 600;">${state.next_team_name}</span>
+                    </div>
+                  ` : ''}
                 </div>
               `
             : ''}
@@ -643,6 +660,7 @@ export class PageSnakeDraft extends LitElement {
                 <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.adminResetTimer}>Reset Timer</button>
                 <button class="btn btn-danger btn-sm" ?disabled=${this.isDryRun} @click=${this.undoLastPick}>Undo Pick</button>
                 <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
+                <button class="btn btn-danger btn-sm" ?disabled=${this.isDryRun} @click=${this.endDraft}>End Draft</button>
               </div>
             ` : ''}
 

@@ -91,6 +91,13 @@ export const api = {
     }).then(handleResponse);
   },
 
+  endDraft(seasonId: string) {
+    return fetch(`${BASE}/seasons/${seasonId}/end-draft`, {
+      method: 'POST',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
   // Teams
   getTeams(seasonId: string) {
     return fetch(`${BASE}/seasons/${seasonId}/teams`, { headers: getHeaders() }).then(handleResponse);
@@ -104,11 +111,11 @@ export const api = {
     }).then(handleResponse);
   },
 
-  updateDraftOrder(seasonId: string, data: any) {
-    return fetch(`${BASE}/seasons/${seasonId}/draft-order`, {
+  updateDraftOrder(seasonId: string, teams: Array<{ team_id: string; draft_position: number }>) {
+    return fetch(`${BASE}/seasons/${seasonId}/teams/reorder`, {
       method: 'PATCH',
       headers: getHeaders(),
-      body: JSON.stringify(data),
+      body: JSON.stringify({ teams }),
     }).then(handleResponse);
   },
 

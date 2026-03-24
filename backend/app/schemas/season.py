@@ -80,3 +80,12 @@ class SeasonJoinResponse(BaseModel):
     team: "TeamResponse"
     season: SeasonResponse
     league: LeagueResponse
+
+
+class TeamReorderItem(BaseModel):
+    team_id: uuid.UUID
+    draft_position: int = Field(ge=1)
+
+
+class TeamsReorderRequest(BaseModel):
+    teams: list[TeamReorderItem]
