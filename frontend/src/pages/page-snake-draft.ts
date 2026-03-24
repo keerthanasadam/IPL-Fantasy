@@ -1,7 +1,7 @@
 import { LitElement, html, css } from 'lit';
 import { customElement, property, state } from 'lit/decorators.js';
 import { api } from '../services/api.js';
-import { getMe, getToken, isAdmin, getCachedUser } from '../services/auth.js';
+import { getMe, getToken, isAdmin, getCachedUser, guardRoute } from '../services/auth.js';
 import { DraftWebSocket } from '../services/ws.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 
@@ -130,6 +130,14 @@ export class PageSnakeDraft extends LitElement {
       .player-info { flex: 1; }
       .player-info .name { font-weight: 600; font-size: 0.85rem; }
       .player-info .meta { font-size: 0.75rem; color: #64748b; }
+      .player-rank {
+        font-size: 0.7rem;
+        color: #64748b;
+        min-width: 24px;
+        text-align: right;
+        flex-shrink: 0;
+        margin-right: 0.4rem;
+      }
 
       .pick-btn {
         background: #f5a623;
@@ -189,6 +197,21 @@ export class PageSnakeDraft extends LitElement {
         background: rgba(245, 166, 35, 0.07);
       }
 
+      .viewer-info {
+        background: #1e293b;
+        border: 1px solid #475569;
+        border-radius: 12px;
+        padding: 1rem;
+        text-align: center;
+        color: #94a3b8;
+        font-size: 0.85rem;
+      }
+      .viewer-label {
+        font-weight: 700;
+        color: #e2e8f0;
+        margin: 0 0 0.5rem;
+      }
+
       .ws-status {
         display: flex;
         align-items: center;
@@ -219,6 +242,7 @@ export class PageSnakeDraft extends LitElement {
   @state() private paused = false;
   @state() private isDryRun = false;
   @state() private timerRemaining = 0;
+  @state() private viewingTeamId = '';
 
   private ws: DraftWebSocket | null = null;
   private me: any = null;
@@ -227,6 +251,7 @@ export class PageSnakeDraft extends LitElement {
 
   onBeforeEnter(location: any) {
     this.seasonId = location.params.seasonId;
+    guardRoute(`/season/${this.seasonId}/draft/snake`);
   }
 
   async connectedCallback() {
@@ -250,6 +275,7 @@ export class PageSnakeDraft extends LitElement {
       this.draftState = data;
       this.paused = (data as any).paused || false;
       this.isDryRun = data.status === 'setup';
+      this.initViewingTeam();
 
       // Start timer when pick advances (new pick made) or on first load while drafting
       if (data.status === 'drafting' && data.timer_seconds > 0 && !this.paused) {
@@ -333,11 +359,18 @@ export class PageSnakeDraft extends LitElement {
       list = list.filter((p) => p.designation === this.filterDesignation);
     }
 
-    // Sort: available first, then drafted
+    // Sort: available first, then drafted; within each group sort by ranking then name
     return [...list].sort((a, b) => {
       const aD = drafted.has(a.id) ? 1 : 0;
       const bD = drafted.has(b.id) ? 1 : 0;
-      return aD - bD || a.name.localeCompare(b.name);
+      if (aD !== bD) return aD - bD;
+      // Ranked players first (nulls last), then alphabetical
+      if (a.ranking !== b.ranking) {
+        if (a.ranking == null) return 1;
+        if (b.ranking == null) return -1;
+        return a.ranking - b.ranking;
+      }
+      return a.name.localeCompare(b.name);
     });
   }
 
@@ -355,9 +388,20 @@ export class PageSnakeDraft extends LitElement {
     return mine?.id ?? null;
   }
 
-  private get myPicks(): any[] {
-    if (!this.draftState || !this.myTeamId) return [];
-    return this.draftState.picks.filter((p: any) => p.team_id === this.myTeamId);
+  private initViewingTeam() {
+    if (!this.viewingTeamId && this.draftState?.teams.length) {
+      this.viewingTeamId = this.myTeamId ?? this.draftState.teams[0].id;
+    }
+  }
+
+  private get viewingTeamPicks(): any[] {
+    return (this.draftState?.picks ?? [])
+      .filter((p: any) => p.team_id === this.viewingTeamId)
+      .sort((a: any, b: any) => a.pick_number - b.pick_number);
+  }
+
+  private get isViewer(): boolean {
+    return !!this.me && !this.myTeamId;
   }
 
   private pickPlayer(playerId: string) {
@@ -455,7 +499,14 @@ export class PageSnakeDraft extends LitElement {
 
     return html`
       ${state?.is_complete
-        ? html`<div class="complete-banner">Draft Complete!</div>`
+        ? html`
+          <div class="complete-banner">
+            <div>Draft Complete!</div>
+            <a class="btn btn-primary" href="/season/${this.seasonId}"
+               style="display:inline-block;margin-top:0.75rem;text-decoration:none;">
+              Go to League →
+            </a>
+          </div>`
         : ''}
       ${this.paused ? html`<div class="paused-banner">Draft Paused</div>` : ''}
       ${this.isDryRun ? html`
@@ -481,7 +532,7 @@ export class PageSnakeDraft extends LitElement {
         </div>
 
         <div class="sidebar">
-          <!-- Status -->
+          <!-- Status bar (always visible) -->
           ${state && !state.is_complete
             ? html`
                 <div class="status-bar">
@@ -499,82 +550,107 @@ export class PageSnakeDraft extends LitElement {
               `
             : ''}
 
-          <!-- My Team panel -->
-          ${this.myTeamId ? html`
-            <div class="card" style="padding: 0.75rem;">
-              <h3 style="margin: 0 0 0.5rem;">My Team</h3>
-              ${this.draftState?.current_team_id === this.myTeamId ? html`
-                <p style="color:#f5a623;font-weight:600;font-size:0.85rem;margin:0 0 0.5rem;">
-                  You're on the clock!
-                </p>
+          ${this.isViewer ? html`
+            <!-- Viewer layout: status info only, no picks or player pool -->
+            <div class="viewer-info">
+              <p class="viewer-label">👁 Viewing Draft</p>
+              ${state ? html`
+                <p style="margin:0;">Round ${state.current_round} · Pick ${state.current_pick_number}</p>
+                ${state.current_team_name ? html`<p style="margin:0.25rem 0 0;">${state.current_team_name} is on the clock</p>` : ''}
               ` : ''}
-              ${this.myPicks.length === 0
-                ? html`<p style="color:#64748b;font-size:0.85rem;margin:0;">No picks yet</p>`
-                : this.myPicks.map((p: any) => html`
-                    <div style="display:flex;justify-content:space-between;align-items:center;
-                                padding:0.3rem 0;border-bottom:1px solid #1e293b;">
-                      <div>
-                        <div style="font-size:0.85rem;">${p.player_name}</div>
-                        <div style="font-size:0.7rem;color:#64748b;">
-                          ${p.player_designation} · ${p.player_team}
+            </div>
+          ` : html`
+            <!-- Participant layout: team viewer + controls + player pool -->
+
+            <!-- Team Viewer panel -->
+            ${this.draftState?.teams.length ? html`
+              <div class="card" style="padding: 0.75rem;">
+                <div style="margin-bottom:0.5rem;">
+                  <select style="width:100%;font-size:0.85rem;padding:0.3rem;"
+                          @change=${(e: any) => { this.viewingTeamId = e.target.value; }}>
+                    ${this.draftState.teams.map((t) => html`
+                      <option value=${t.id} ?selected=${t.id === this.viewingTeamId}>
+                        ${t.name}${t.id === this.myTeamId ? ' (You)' : ''}
+                      </option>
+                    `)}
+                  </select>
+                </div>
+                ${this.draftState?.current_team_id === this.myTeamId && this.viewingTeamId === this.myTeamId ? html`
+                  <p style="color:#f5a623;font-weight:600;font-size:0.85rem;margin:0 0 0.5rem;">
+                    You're on the clock!
+                  </p>
+                ` : ''}
+                <div style="max-height:300px;overflow-y:auto;">
+                  ${this.viewingTeamPicks.length === 0
+                    ? html`<p style="color:#64748b;font-size:0.85rem;margin:0;">No picks yet</p>`
+                    : this.viewingTeamPicks.map((p: any) => html`
+                        <div style="display:flex;justify-content:space-between;align-items:center;
+                                    padding:0.3rem 0;border-bottom:1px solid #1e293b;">
+                          <div>
+                            <div style="font-size:0.85rem;">${p.player_name}</div>
+                            <div style="font-size:0.7rem;color:#64748b;">
+                              ${p.player_designation} · ${p.player_team}
+                            </div>
+                          </div>
+                          <div style="font-size:0.75rem;color:#64748b;flex-shrink:0;">R${p.round}</div>
                         </div>
+                      `)
+                  }
+                </div>
+              </div>
+            ` : ''}
+
+            <!-- Commissioner Controls (admin only) -->
+            ${isAdmin() ? html`
+              <div class="controls">
+                <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.togglePause}>
+                  ${this.paused ? 'Resume' : 'Pause'}
+                </button>
+                <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.adminResetTimer}>Reset Timer</button>
+                <button class="btn btn-danger btn-sm" ?disabled=${this.isDryRun} @click=${this.undoLastPick}>Undo Pick</button>
+                <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
+              </div>
+            ` : ''}
+
+            <!-- Player Pool -->
+            <div class="card" style="padding: 0.75rem;">
+              <h3 style="margin: 0 0 0.5rem 0;">Available Players</h3>
+              <input class="pool-search" placeholder="Search players..."
+                     .value=${this.searchQuery}
+                     @input=${(e: any) => (this.searchQuery = e.target.value)} />
+              <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
+                <select style="flex: 1; font-size: 0.8rem;" @change=${(e: any) => (this.filterTeam = e.target.value)}>
+                  <option value="">All Teams</option>
+                  ${this.uniqueTeams.map((t) => html`<option value=${t}>${t}</option>`)}
+                </select>
+                <select style="flex: 1; font-size: 0.8rem;" @change=${(e: any) => (this.filterDesignation = e.target.value)}>
+                  <option value="">All Roles</option>
+                  ${this.uniqueDesignations.map((d) => html`<option value=${d}>${d}</option>`)}
+                </select>
+              </div>
+              <div class="pool-section">
+                ${this.filteredPlayers.map((p) => {
+                  const isDrafted = this.draftedPlayerIds.has(p.id);
+                  return html`
+                    <div class="player-row ${isDrafted ? 'drafted' : ''}">
+                      <span class="player-rank">${p.ranking != null ? p.ranking : '—'}</span>
+                      <div class="player-info">
+                        <div class="name">${p.name}</div>
+                        <div class="meta">${p.ipl_team} - ${p.designation}</div>
                       </div>
-                      <div style="font-size:0.75rem;color:#64748b;flex-shrink:0;">R${p.round}</div>
+                      ${!isDrafted && !state?.is_complete && !this.isDryRun
+                        ? html`<button class="pick-btn"
+                                       ?disabled=${state && !state.is_complete &&
+                                                    state.current_team_id !== this.myTeamId &&
+                                                    !isAdmin()}
+                                       @click=${() => this.pickPlayer(p.id)}>Pick</button>`
+                        : ''}
                     </div>
-                  `)
-              }
+                  `;
+                })}
+              </div>
             </div>
-          ` : ''}
-
-          <!-- Commissioner Controls (admin only) -->
-          ${isAdmin() ? html`
-            <div class="controls">
-              <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.togglePause}>
-                ${this.paused ? 'Resume' : 'Pause'}
-              </button>
-              <button class="btn btn-secondary btn-sm" ?disabled=${this.isDryRun} @click=${this.adminResetTimer}>Reset Timer</button>
-              <button class="btn btn-danger btn-sm" ?disabled=${this.isDryRun} @click=${this.undoLastPick}>Undo Pick</button>
-              <button class="btn btn-secondary btn-sm" @click=${this.exportDraft}>Export CSV</button>
-            </div>
-          ` : ''}
-
-          <!-- Player Pool -->
-          <div class="card" style="padding: 0.75rem;">
-            <h3 style="margin: 0 0 0.5rem 0;">Available Players</h3>
-            <input class="pool-search" placeholder="Search players..."
-                   .value=${this.searchQuery}
-                   @input=${(e: any) => (this.searchQuery = e.target.value)} />
-            <div style="display: flex; gap: 0.5rem; margin-bottom: 0.5rem;">
-              <select style="flex: 1; font-size: 0.8rem;" @change=${(e: any) => (this.filterTeam = e.target.value)}>
-                <option value="">All Teams</option>
-                ${this.uniqueTeams.map((t) => html`<option value=${t}>${t}</option>`)}
-              </select>
-              <select style="flex: 1; font-size: 0.8rem;" @change=${(e: any) => (this.filterDesignation = e.target.value)}>
-                <option value="">All Roles</option>
-                ${this.uniqueDesignations.map((d) => html`<option value=${d}>${d}</option>`)}
-              </select>
-            </div>
-            <div class="pool-section">
-              ${this.filteredPlayers.map((p) => {
-                const isDrafted = this.draftedPlayerIds.has(p.id);
-                return html`
-                  <div class="player-row ${isDrafted ? 'drafted' : ''}">
-                    <div class="player-info">
-                      <div class="name">${p.name}</div>
-                      <div class="meta">${p.ipl_team} - ${p.designation}</div>
-                    </div>
-                    ${!isDrafted && !state?.is_complete && !this.isDryRun
-                      ? html`<button class="pick-btn"
-                                     ?disabled=${state && !state.is_complete &&
-                                                  state.current_team_id !== this.myTeamId &&
-                                                  !isAdmin()}
-                                     @click=${() => this.pickPlayer(p.id)}>Pick</button>`
-                      : ''}
-                  </div>
-                `;
-              })}
-            </div>
-          </div>
+          `}
         </div>
       </div>
     `;

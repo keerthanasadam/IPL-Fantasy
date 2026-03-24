@@ -138,6 +138,7 @@ async def make_pick(
     player_id: uuid.UUID,
     user_id: uuid.UUID | None = None,
     force_team_id: uuid.UUID | None = None,
+    requesting_team_id: uuid.UUID | None = None,
 ) -> dict:
     """Make a snake draft pick. Returns the pick data or raises ValueError."""
     state = await get_draft_state(db, season_id)
@@ -154,6 +155,11 @@ async def make_pick(
         team_id = state.current_team_id
     else:
         raise ValueError("No team on the clock")
+
+    # Validate ownership for regular picks (not admin force_pick)
+    if not force_team_id and requesting_team_id is not None:
+        if requesting_team_id != team_id:
+            raise ValueError("Not your turn")
 
     # Check player is not already drafted
     drafted_player_ids = {p["player_id"] for p in state.picks}

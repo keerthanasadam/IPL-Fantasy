@@ -8,6 +8,7 @@ class PlayerResponse(BaseModel):
     name: str
     ipl_team: str
     designation: str
+    ranking: int | None = None
 
     model_config = {"from_attributes": True}
 

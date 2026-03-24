@@ -36,7 +36,7 @@ async def list_players(
         stmt = stmt.where(Player.designation == designation)
         count_stmt = count_stmt.where(Player.designation == designation)
 
-    stmt = stmt.order_by(Player.name)
+    stmt = stmt.order_by(Player.ranking.asc().nulls_last(), Player.name.asc())
     result = await db.execute(stmt)
     players = result.scalars().all()
 
@@ -93,11 +93,15 @@ async def import_players(
             skipped += 1
             continue
 
+        ranking_raw = row.get("Ranking", "").strip()
+        ranking = int(ranking_raw) if ranking_raw.isdigit() else None
+
         player = Player(
             season_id=season_id,
             name=name,
             ipl_team=ipl_team,
             designation=designation,
+            ranking=ranking,
         )
         db.add(player)
         existing_names.add(name.lower())
