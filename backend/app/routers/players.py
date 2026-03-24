@@ -72,13 +72,16 @@ async def import_players(
         )
 
     imported = 0
+    updated = 0
     skipped = 0
     errors = []
 
-    # Get existing player names for de-dup
-    existing_stmt = select(Player.name).where(Player.season_id == season_id)
+    # Load existing players as a dict keyed by lowercase name for upsert
+    existing_stmt = select(Player).where(Player.season_id == season_id)
     existing_result = await db.execute(existing_stmt)
-    existing_names = {name.lower() for name in existing_result.scalars().all()}
+    existing_players: dict[str, Player] = {
+        p.name.lower(): p for p in existing_result.scalars().all()
+    }
 
     for i, row in enumerate(reader, start=2):
         name = row.get("Player Name", "").strip()
@@ -89,26 +92,30 @@ async def import_players(
             errors.append(f"Row {i}: missing Player Name")
             continue
 
-        if name.lower() in existing_names:
-            skipped += 1
-            continue
-
         ranking_raw = row.get("Ranking", "").strip()
         ranking = int(ranking_raw) if ranking_raw.isdigit() else None
 
-        player = Player(
-            season_id=season_id,
-            name=name,
-            ipl_team=ipl_team,
-            designation=designation,
-            ranking=ranking,
-        )
-        db.add(player)
-        existing_names.add(name.lower())
-        imported += 1
+        existing = existing_players.get(name.lower())
+        if existing:
+            # Update fields on existing player (allows ranking updates after initial import)
+            existing.ipl_team = ipl_team or existing.ipl_team
+            existing.designation = designation or existing.designation
+            existing.ranking = ranking
+            updated += 1
+        else:
+            player = Player(
+                season_id=season_id,
+                name=name,
+                ipl_team=ipl_team,
+                designation=designation,
+                ranking=ranking,
+            )
+            db.add(player)
+            existing_players[name.lower()] = player
+            imported += 1
 
     await db.commit()
-    return ImportResult(imported=imported, skipped=skipped, errors=errors)
+    return ImportResult(imported=imported, updated=updated, skipped=skipped, errors=errors)
 
 
 @router.delete("")
