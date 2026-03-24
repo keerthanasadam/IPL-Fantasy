@@ -24,6 +24,9 @@ from app.schemas.season import (
     SeasonJoinResponse,
     SeasonResponse,
     SeasonUpdate,
+    TeamReorderItem,
+    TeamResponse,
+    TeamsReorderRequest,
 )
 
 router = APIRouter(prefix="/api", tags=["seasons"])
@@ -228,3 +231,51 @@ async def start_draft(
     await db.commit()
     await db.refresh(season)
     return season
+
+
+@router.post("/seasons/{season_id}/end-draft", response_model=SeasonResponse)
+async def end_draft(
+    season_id: uuid.UUID,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    season = await db.get(Season, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    if season.status not in (SeasonStatus.DRAFTING, SeasonStatus.SETUP):
+        raise HTTPException(status_code=400, detail=f"Cannot end draft in status: {season.status.value}")
+    season.status = SeasonStatus.COMPLETED
+    await db.commit()
+    await db.refresh(season)
+    return season
+
+
+@router.patch("/seasons/{season_id}/teams/reorder", response_model=list[TeamResponse])
+async def reorder_teams(
+    season_id: uuid.UUID,
+    body: TeamsReorderRequest,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    season = await db.get(Season, season_id)
+    if season is None:
+        raise HTTPException(status_code=404, detail="Season not found")
+    if season.status != SeasonStatus.SETUP:
+        raise HTTPException(status_code=400, detail="Draft order can only be changed before the draft starts")
+
+    positions = [item.draft_position for item in body.teams]
+    if len(positions) != len(set(positions)):
+        raise HTTPException(status_code=422, detail="Duplicate draft positions")
+
+    for item in body.teams:
+        team = await db.get(Team, item.team_id)
+        if not team or team.season_id != season_id:
+            raise HTTPException(status_code=404, detail=f"Team {item.team_id} not found in this season")
+        team.draft_position = item.draft_position
+
+    await db.commit()
+
+    teams_result = await db.execute(
+        select(Team).where(Team.season_id == season_id).order_by(Team.draft_position)
+    )
+    return teams_result.scalars().all()

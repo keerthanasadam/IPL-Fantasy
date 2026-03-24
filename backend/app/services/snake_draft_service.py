@@ -106,7 +106,8 @@ async def get_draft_state(db: AsyncSession, season_id: uuid.UUID) -> DraftState:
     team_count = season.team_count
     total_picks = total_rounds * team_count
     next_pick_number = len(picks) + 1
-    is_complete = next_pick_number > total_picks
+    season_status = season.status.value if hasattr(season.status, 'value') else season.status
+    is_complete = season_status == "completed" or next_pick_number > total_picks
 
     current_team_id = None
     current_team_name = None

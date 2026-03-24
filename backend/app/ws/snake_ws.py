@@ -14,7 +14,7 @@ from app.models.player import Player
 from app.models.season import Season, SeasonStatus
 from app.models.team import Team
 from app.models.user import User
-from app.services.snake_draft_service import get_draft_state, make_pick, undo_last_pick
+from app.services.snake_draft_service import calculate_snake_turn, get_draft_state, make_pick, undo_last_pick
 from app.ws.manager import manager
 
 router = APIRouter()
@@ -289,6 +289,27 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
                         if not state.is_complete and timer_seconds > 0:
                             _start_timer(websocket.app, season_id, state.current_pick_number, timer_seconds)
 
+                    elif msg_type == "admin_end_draft":
+                        if not is_admin_user:
+                            await manager.send_personal(websocket, {"type": "error", "message": "Unauthorized"})
+                            continue
+                        season_stmt = await db.execute(select(Season).where(Season.id == season_id))
+                        season = season_stmt.scalar_one()
+                        if season.status != SeasonStatus.DRAFTING:
+                            await manager.send_personal(websocket, {
+                                "type": "error",
+                                "message": "Draft is not currently active",
+                            })
+                            continue
+                        season.status = SeasonStatus.COMPLETED
+                        await db.commit()
+                        _cancel_timer(room)
+                        state = await get_draft_state(db, season_id)
+                        await manager.broadcast_to_room(room, {
+                            "type": "draft_state",
+                            "data": _serialize_state(state, season.draft_config or {}),
+                        })
+
                     else:
                         await manager.send_personal(websocket, {
                             "type": "error",
@@ -306,6 +327,18 @@ async def snake_draft_ws(websocket: WebSocket, season_id: uuid.UUID):
 
 def _serialize_state(state, draft_config: dict | None = None) -> dict:
     config = draft_config or {}
+    total_picks = state.total_rounds * state.team_count
+
+    # Compute next team using snake turn logic
+    next_team_id = None
+    next_team_name = None
+    if not state.is_complete and state.teams:
+        next_pick = state.current_pick_number + 1
+        if next_pick <= total_picks:
+            _, next_team = calculate_snake_turn(next_pick, len(state.teams), state.teams)
+            next_team_id = next_team["id"]
+            next_team_name = next_team["name"]
+
     return {
         "season_id": str(state.season_id),
         "status": state.status,
@@ -321,4 +354,6 @@ def _serialize_state(state, draft_config: dict | None = None) -> dict:
         "timer_seconds": state.timer_seconds,
         "pick_timer_seconds": config.get("pick_timer_seconds", 0),
         "paused": bool(config.get("paused", False)),
+        "next_team_id": next_team_id,
+        "next_team_name": next_team_name,
     }

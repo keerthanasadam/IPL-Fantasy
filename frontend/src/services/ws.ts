@@ -92,6 +92,10 @@ export class DraftWebSocket {
     this.send({ type: 'admin_reset_timer' });
   }
 
+  adminEndDraft() {
+    this.send({ type: 'admin_end_draft' });
+  }
+
   disconnect() {
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
