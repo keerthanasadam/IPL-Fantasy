@@ -138,6 +138,24 @@ export class PageSnakeDraft extends LitElement {
         flex-shrink: 0;
         margin-right: 0.4rem;
       }
+      .pool-sort-header {
+        display: flex;
+        gap: 0.25rem;
+        padding: 0.2rem 0.75rem;
+        border-bottom: 1px solid #334155;
+        margin-bottom: 0.25rem;
+      }
+      .sort-btn {
+        background: none;
+        border: none;
+        color: #64748b;
+        cursor: pointer;
+        font-size: 0.7rem;
+        padding: 0.1rem 0.3rem;
+        border-radius: 3px;
+      }
+      .sort-btn:hover { color: #e2e8f0; }
+      .sort-btn.active { color: #f5a623; font-weight: 600; }
 
       .pick-btn {
         background: #f5a623;
@@ -238,6 +256,8 @@ export class PageSnakeDraft extends LitElement {
   @state() private searchQuery = '';
   @state() private filterTeam = '';
   @state() private filterDesignation = '';
+  @state() private sortCol: 'ranking' | 'name' | 'ipl_team' | 'designation' = 'ranking';
+  @state() private sortDir: 'asc' | 'desc' = 'asc';
   @state() private wsConnected = false;
   @state() private paused = false;
   @state() private isDryRun = false;
@@ -359,19 +379,33 @@ export class PageSnakeDraft extends LitElement {
       list = list.filter((p) => p.designation === this.filterDesignation);
     }
 
-    // Sort: available first, then drafted; within each group sort by ranking then name
+    // Sort: available first, then drafted; within each group use sortCol/sortDir
     return [...list].sort((a, b) => {
       const aD = drafted.has(a.id) ? 1 : 0;
       const bD = drafted.has(b.id) ? 1 : 0;
       if (aD !== bD) return aD - bD;
-      // Ranked players first (nulls last), then alphabetical
-      if (a.ranking !== b.ranking) {
-        if (a.ranking == null) return 1;
-        if (b.ranking == null) return -1;
-        return a.ranking - b.ranking;
-      }
-      return a.name.localeCompare(b.name);
+      return this._cmp(a, b);
     });
+  }
+
+  private _cmp(a: any, b: any): number {
+    const dir = this.sortDir === 'asc' ? 1 : -1;
+    if (this.sortCol === 'ranking') {
+      if (a.ranking == null && b.ranking == null) return a.name.localeCompare(b.name);
+      if (a.ranking == null) return 1;
+      if (b.ranking == null) return -1;
+      return (a.ranking - b.ranking) * dir;
+    }
+    return (a[this.sortCol] || '').localeCompare(b[this.sortCol] || '') * dir;
+  }
+
+  private toggleSort(col: 'ranking' | 'name' | 'ipl_team' | 'designation') {
+    if (this.sortCol === col) {
+      this.sortDir = this.sortDir === 'asc' ? 'desc' : 'asc';
+    } else {
+      this.sortCol = col;
+      this.sortDir = 'asc';
+    }
   }
 
   private get uniqueTeams(): string[] {
@@ -627,6 +661,13 @@ export class PageSnakeDraft extends LitElement {
                   <option value="">All Roles</option>
                   ${this.uniqueDesignations.map((d) => html`<option value=${d}>${d}</option>`)}
                 </select>
+              </div>
+              <div class="pool-sort-header">
+                ${(['ranking', 'name', 'ipl_team', 'designation'] as const).map((col) => {
+                  const label = col === 'ranking' ? '#' : col === 'ipl_team' ? 'Team' : col === 'designation' ? 'Role' : 'Name';
+                  const arrow = this.sortCol === col ? (this.sortDir === 'asc' ? ' ↑' : ' ↓') : '';
+                  return html`<button class="sort-btn ${this.sortCol === col ? 'active' : ''}" @click=${() => this.toggleSort(col)}>${label}${arrow}</button>`;
+                })}
               </div>
               <div class="pool-section">
                 ${this.filteredPlayers.map((p) => {

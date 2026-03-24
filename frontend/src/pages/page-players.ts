@@ -13,6 +13,7 @@ export class PagePlayers extends LitElement {
       table { width: 100%; border-collapse: collapse; }
       th { text-align: left; padding: 0.6rem; color: #94a3b8; border-bottom: 2px solid #334155; font-size: 0.85rem; }
       td { padding: 0.6rem; border-bottom: 1px solid #1e293b; font-size: 0.9rem; }
+      .col-rank { width: 2.5rem; text-align: right; color: #64748b; }
       tr:hover td { background: #1e293b; }
     `,
   ];
@@ -69,11 +70,11 @@ export class PagePlayers extends LitElement {
 
       <table>
         <thead>
-          <tr><th>Name</th><th>IPL Team</th><th>Designation</th></tr>
+          <tr><th class="col-rank">#</th><th>Name</th><th>IPL Team</th><th>Designation</th></tr>
         </thead>
         <tbody>
           ${this.players.map(
-            (p) => html`<tr><td>${p.name}</td><td>${p.ipl_team}</td><td>${p.designation}</td></tr>`
+            (p) => html`<tr><td class="col-rank">${p.ranking != null ? p.ranking : '—'}</td><td>${p.name}</td><td>${p.ipl_team}</td><td>${p.designation}</td></tr>`
           )}
         </tbody>
       </table>

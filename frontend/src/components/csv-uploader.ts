@@ -52,7 +52,7 @@ export class CsvUploader extends LitElement {
            @dragleave=${() => (this.dragOver = false)}
            @drop=${this.handleDrop}>
         <div>Click or drag CSV file here</div>
-        <div style="font-size:0.8rem; margin-top:0.25rem;">Required columns: Player Name, Team, Designation</div>
+        <div style="font-size:0.8rem; margin-top:0.25rem;">Required: Player Name, Team, Designation · Optional: Ranking</div>
         ${this.fileName ? html`<div class="file-name">${this.fileName}</div>` : ''}
       </div>
       <input type="file" accept=".csv" @change=${this.handleChange} />
