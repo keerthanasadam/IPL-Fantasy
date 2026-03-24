@@ -1,0 +1,10 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(alembic current:*)",
+      "Bash(alembic heads:*)",
+      "Bash(railway logs:*)",
+      "Bash(python -c \":*)"
+    ]
+  }
+}

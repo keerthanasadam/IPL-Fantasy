@@ -401,7 +401,7 @@ export class PageSnakeDraft extends LitElement {
   }
 
   private get isViewer(): boolean {
-    return !!this.me && !this.myTeamId;
+    return !!this.me && !this.myTeamId && !isAdmin();
   }
 
   private pickPlayer(playerId: string) {
