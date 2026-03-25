@@ -28,6 +28,12 @@ export class PageLeague extends LitElement {
       th { text-align: left; padding: 0.6rem; color: #64748b; font-size: 0.8rem; text-transform: uppercase; }
       td { padding: 0.6rem; border-top: 1px solid #1e293b; }
       .draft-info { display: flex; flex-direction: column; gap: 1rem; }
+      .roster-row td { padding: 0; border-top: none; }
+      .roster-table { width: 100%; border-collapse: collapse; background: #0f172a; }
+      .roster-table th { padding: 0.4rem 0.6rem; font-size: 0.75rem; }
+      .roster-table td { padding: 0.4rem 0.6rem; border-top: 1px solid #1e293b; font-size: 0.85rem; }
+      tr.clickable { cursor: pointer; }
+      tr.clickable:hover td { background: #1e293b; }
     `,
   ];
 
@@ -36,6 +42,9 @@ export class PageLeague extends LitElement {
   @state() private season: any = null;
   @state() private activeTab: 'home' | 'draft' = 'home';
   @state() private adminUser = false;
+  @state() private expandedTeams = new Set<string>();
+  @state() private rosters: Record<string, any[]> = {};
+  @state() private rostersLoaded = false;
 
   onBeforeEnter(location: any) {
     this.leagueId = location.params.leagueId;
@@ -56,6 +65,59 @@ export class PageLeague extends LitElement {
         this.season = await api.getSeason(sorted[0].id);
       }
     }
+  }
+
+  private get isDraftComplete() {
+    return this.season?.status === 'completed' || this.season?.status === 'active';
+  }
+
+  private get hasScores() {
+    return Object.values(this.rosters).some((players: any[]) =>
+      players.some((p: any) => p.points > 0)
+    );
+  }
+
+  private async toggleTeam(teamId: string) {
+    if (!this.rostersLoaded) {
+      const data: any[] = await api.getSeasonRosters(this.season.id);
+      const map: Record<string, any[]> = {};
+      for (const t of data) {
+        map[t.team_id] = t.players;
+      }
+      this.rosters = map;
+      this.rostersLoaded = true;
+    }
+    const next = new Set(this.expandedTeams);
+    if (next.has(teamId)) {
+      next.delete(teamId);
+    } else {
+      next.add(teamId);
+    }
+    this.expandedTeams = next;
+  }
+
+  private renderRoster(teamId: string) {
+    const players = this.rosters[teamId] ?? [];
+    return html`
+      <table class="roster-table">
+        <thead>
+          <tr>
+            <th>Player</th><th>IPL Team</th><th>Role</th>
+            ${this.hasScores ? html`<th>Pts</th>` : ''}
+          </tr>
+        </thead>
+        <tbody>
+          ${players.map((p: any) => html`
+            <tr>
+              <td>${p.name}</td>
+              <td class="text-muted">${p.ipl_team}</td>
+              <td class="text-muted">${p.designation}</td>
+              ${this.hasScores ? html`<td class="text-gold">${p.points.toFixed(1)}</td>` : ''}
+            </tr>
+          `)}
+        </tbody>
+      </table>
+    `;
   }
 
   render() {
@@ -89,6 +151,7 @@ export class PageLeague extends LitElement {
   private renderLeaderboard() {
     const teams = this.season?.teams ?? [];
     const sorted = [...teams].sort((a: any, b: any) => b.points - a.points);
+    const isDraftComplete = this.isDraftComplete;
 
     return html`
       <div class="card">
@@ -106,14 +169,25 @@ export class PageLeague extends LitElement {
                   </tr>
                 </thead>
                 <tbody>
-                  ${sorted.map((t: any, i: number) => html`
-                    <tr>
-                      <td>${i + 1}</td>
-                      <td>${t.name}</td>
-                      <td class="text-muted">${t.owner_id ? '—' : 'Unowned'}</td>
-                      <td class="text-gold">${Number(t.points).toFixed(1)}</td>
-                    </tr>
-                  `)}
+                  ${sorted.map((t: any, i: number) => {
+                    const expanded = this.expandedTeams.has(t.id);
+                    return html`
+                      <tr
+                        class="${isDraftComplete ? 'clickable' : ''}"
+                        @click=${isDraftComplete ? () => this.toggleTeam(t.id) : undefined}
+                      >
+                        <td>${i + 1}</td>
+                        <td>${t.name} ${isDraftComplete ? (expanded ? '▾' : '▸') : ''}</td>
+                        <td class="text-muted">${t.owner_id ? '—' : 'Unowned'}</td>
+                        <td class="text-gold">${Number(t.points).toFixed(1)}</td>
+                      </tr>
+                      ${expanded ? html`
+                        <tr class="roster-row">
+                          <td colspan="4">${this.renderRoster(t.id)}</td>
+                        </tr>
+                      ` : ''}
+                    `;
+                  })}
                 </tbody>
               </table>
             `
@@ -174,14 +248,14 @@ export class PageLeague extends LitElement {
               `
             : ''
           }
-          ${this.adminUser && season.status === 'setup'
+          ${this.adminUser
             ? html`
                 <a
                   href="/season/${season.id}"
                   class="btn btn-secondary"
                   style="text-decoration:none;"
                 >
-                  Admin Setup →
+                  ${season.status === 'setup' ? 'Admin Setup →' : 'Season Settings →'}
                 </a>
               `
             : ''

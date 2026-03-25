@@ -6,7 +6,9 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.deps import get_current_user, get_db
+from app.models.player import Player
 from app.models.season import Season
+from app.models.snake_pick import SnakePick
 from app.models.team import Team
 from app.models.user import User
 from app.schemas.team import DraftOrderUpdate, TeamResponse, TeamUpdate
@@ -93,3 +95,47 @@ async def update_draft_order(
     stmt = select(Team).where(Team.season_id == season_id).order_by(Team.draft_position)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+@router.get("/seasons/{season_id}/rosters")
+async def get_season_rosters(
+    season_id: uuid.UUID,
+    db: AsyncSession = Depends(get_db),
+):
+    season_stmt = select(Season).where(Season.id == season_id)
+    season = (await db.execute(season_stmt)).scalar_one_or_none()
+    if not season:
+        raise HTTPException(status_code=404, detail="Season not found")
+    if season.status not in ("completed", "active"):
+        raise HTTPException(status_code=403, detail="Rosters are only public once the draft is complete")
+
+    teams_stmt = select(Team).where(Team.season_id == season_id).order_by(Team.draft_position)
+    teams = (await db.execute(teams_stmt)).scalars().all()
+
+    result = []
+    for team in teams:
+        picks_stmt = (
+            select(Player)
+            .join(SnakePick, SnakePick.player_id == Player.id)
+            .where(SnakePick.team_id == team.id)
+            .where(SnakePick.is_undone == False)  # noqa: E712
+            .order_by(SnakePick.pick_number)
+        )
+        players = (await db.execute(picks_stmt)).scalars().all()
+        result.append({
+            "team_id": str(team.id),
+            "team_name": team.name,
+            "team_points": float(team.points) if team.points is not None else 0.0,
+            "players": [
+                {
+                    "id": str(p.id),
+                    "name": p.name,
+                    "ipl_team": p.ipl_team,
+                    "designation": p.designation,
+                    "ranking": p.ranking,
+                    "points": float(p.points) if p.points is not None else 0.0,
+                }
+                for p in players
+            ],
+        })
+    return result

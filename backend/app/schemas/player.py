@@ -9,6 +9,7 @@ class PlayerResponse(BaseModel):
     ipl_team: str
     designation: str
     ranking: int | None = None
+    points: float | None = None
 
     model_config = {"from_attributes": True}
 
