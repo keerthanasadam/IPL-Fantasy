@@ -1,6 +1,7 @@
 import csv
 import io
 import uuid
+from decimal import Decimal, InvalidOperation
 
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File
 from sqlalchemy import func, select
@@ -9,6 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.deps import get_current_admin, get_current_user, get_db
 from app.models.player import Player
 from app.models.season import Season
+from app.models.snake_pick import SnakePick
+from app.models.team import Team
 from app.schemas.player import ImportResult, PlayerListResponse, PlayerResponse
 
 router = APIRouter(prefix="/api/seasons/{season_id}/players", tags=["players"])
@@ -95,12 +98,22 @@ async def import_players(
         ranking_raw = row.get("Ranking", "").strip()
         ranking = int(ranking_raw) if ranking_raw.isdigit() else None
 
+        points_raw = row.get("Points", "").strip()
+        points_value: Decimal | None = None
+        if points_raw:
+            try:
+                points_value = Decimal(points_raw)
+            except InvalidOperation:
+                pass
+
         existing = existing_players.get(name.lower())
         if existing:
             # Update fields on existing player (allows ranking updates after initial import)
             existing.ipl_team = ipl_team or existing.ipl_team
             existing.designation = designation or existing.designation
             existing.ranking = ranking
+            if points_value is not None:
+                existing.points = points_value
             updated += 1
         else:
             player = Player(
@@ -109,12 +122,28 @@ async def import_players(
                 ipl_team=ipl_team,
                 designation=designation,
                 ranking=ranking,
+                points=points_value,
             )
             db.add(player)
             existing_players[name.lower()] = player
             imported += 1
 
     await db.commit()
+
+    # Recalculate team totals for all teams in this season
+    teams_stmt = select(Team).where(Team.season_id == season_id)
+    teams_result = await db.execute(teams_stmt)
+    for team in teams_result.scalars().all():
+        sum_stmt = (
+            select(func.coalesce(func.sum(Player.points), 0))
+            .join(SnakePick, SnakePick.player_id == Player.id)
+            .where(SnakePick.team_id == team.id)
+            .where(SnakePick.is_undone == False)  # noqa: E712
+        )
+        total = (await db.execute(sum_stmt)).scalar()
+        team.points = total
+    await db.commit()
+
     return ImportResult(imported=imported, updated=updated, skipped=skipped, errors=errors)
 
 

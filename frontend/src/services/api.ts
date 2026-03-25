@@ -184,6 +184,10 @@ export const api = {
     return fetch(`${BASE}/seasons/${seasonId}/draft`, { headers: getHeaders() }).then(handleResponse);
   },
 
+  getSeasonRosters(seasonId: string) {
+    return fetch(`${BASE}/seasons/${seasonId}/rosters`).then(handleResponse);
+  },
+
   exportDraft(seasonId: string) {
     return fetch(`${BASE}/seasons/${seasonId}/draft/export`, { headers: getHeaders() });
   },
