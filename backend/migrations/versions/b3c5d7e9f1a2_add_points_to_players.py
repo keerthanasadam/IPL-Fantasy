@@ -18,7 +18,8 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    op.add_column('players', sa.Column('points', sa.Numeric(10, 2), nullable=True, server_default='0'))
+    conn = op.get_bind()
+    conn.execute(sa.text("ALTER TABLE players ADD COLUMN IF NOT EXISTS points NUMERIC(10, 2) DEFAULT 0"))
 
 
 def downgrade() -> None:
