@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     DATABASE_URL: str = "postgresql+asyncpg://ipl:ipl_secret@localhost:5432/ipl_fantasy"
-    DATABASE_URL_SYNC: str = "postgresql://ipl:ipl_secret@localhost:5432/ipl_fantasy"
+    DATABASE_URL_SYNC: str = ""  # always derived from DATABASE_URL in validator
     REDIS_URL: str = "redis://localhost:6379/0"
     JWT_SECRET: str = "change-me"
     JWT_ALGORITHM: str = "HS256"
@@ -21,11 +21,10 @@ class Settings(BaseSettings):
             self.DATABASE_URL = self.DATABASE_URL.replace(
                 "postgresql://", "postgresql+asyncpg://", 1
             )
-        # Ensure sync URL never has the asyncpg driver prefix
-        if self.DATABASE_URL_SYNC.startswith("postgresql+asyncpg://"):
-            self.DATABASE_URL_SYNC = self.DATABASE_URL_SYNC.replace(
-                "postgresql+asyncpg://", "postgresql://", 1
-            )
+        # Always derive sync URL from the (now-fixed) async URL
+        self.DATABASE_URL_SYNC = self.DATABASE_URL.replace(
+            "postgresql+asyncpg://", "postgresql://", 1
+        )
         return self
 
 
