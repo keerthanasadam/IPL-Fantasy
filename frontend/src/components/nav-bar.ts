@@ -208,15 +208,21 @@ export class NavBar extends LitElement {
     super.connectedCallback();
     this._loadUser();
     window.addEventListener('theme-changed', this._onThemeChanged);
+    window.addEventListener('user-updated', this._onUserUpdated);
   }
 
   disconnectedCallback() {
     super.disconnectedCallback();
     window.removeEventListener('theme-changed', this._onThemeChanged);
+    window.removeEventListener('user-updated', this._onUserUpdated);
   }
 
   private _onThemeChanged = (e: Event) => {
     this.theme = (e as CustomEvent<Theme>).detail;
+  };
+
+  private _onUserUpdated = () => {
+    this._loadUser();
   };
 
   private async _loadUser() {
@@ -280,6 +286,7 @@ export class NavBar extends LitElement {
                   ${this.menuOpen
                     ? html`
                         <div class="dropdown">
+                          <button @click=${() => { this.menuOpen = false; window.location.href = '/account'; }}>Account</button>
                           <button @click=${this.handleLogout}>Logout</button>
                         </div>
                       `
@@ -320,6 +327,7 @@ export class NavBar extends LitElement {
                     ? html`<a href="/admin/create" @click=${() => { this.mobileNavOpen = false; }}>Create League</a>`
                     : html`<a href="/join" @click=${() => { this.mobileNavOpen = false; }}>Join Season</a>`
                   }
+                  <a href="/account" @click=${() => { this.mobileNavOpen = false; }}>Account</a>
                   <button class="mobile-nav-btn" @click=${this.handleLogout}>Logout</button>
                 `
               : html`

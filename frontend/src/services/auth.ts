@@ -6,6 +6,7 @@ export interface UserInfo {
   email: string;
   display_name: string;
   is_admin: boolean;
+  must_change_password: boolean;
 }
 
 const SESSION_KEY = 'ipl_user';
@@ -49,6 +50,11 @@ export async function getMe(): Promise<UserInfo | null> {
   }
 }
 
+export async function refreshUser(): Promise<UserInfo | null> {
+  persistUser(null);
+  return getMe();
+}
+
 export function getCachedUser(): UserInfo | null {
   return cachedUser;
 }
@@ -62,6 +68,11 @@ export function guardRoute(redirectTo: string = '/'): boolean {
     window.location.href = `/login?redirect=${encodeURIComponent(redirectTo)}`;
     return false;
   }
+  // Intercept users who must change their password
+  if (cachedUser?.must_change_password && window.location.pathname !== '/account') {
+    window.location.href = '/account?force=true';
+    return false;
+  }
   return true;
 }
 
@@ -69,6 +80,8 @@ export async function login(email: string, password: string): Promise<void> {
   const res = await api.login(email, password);
   localStorage.setItem('token', res.access_token);
   persistUser(null);
+  // Eagerly fetch user so must_change_password is available for guardRoute
+  await getMe();
 }
 
 export async function register(email: string, password: string, displayName: string): Promise<void> {

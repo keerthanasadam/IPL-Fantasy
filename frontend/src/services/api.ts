@@ -191,4 +191,40 @@ export const api = {
   exportDraft(seasonId: string) {
     return fetch(`${BASE}/seasons/${seasonId}/draft/export`, { headers: getHeaders() });
   },
+
+  // Auth — password management + profile
+  forgotPassword(email: string) {
+    return fetch(`${BASE}/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    }).then(handleResponse);
+  },
+
+  changePassword(currentPassword: string | null, newPassword: string) {
+    return fetch(`${BASE}/auth/change-password`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ current_password: currentPassword, new_password: newPassword }),
+    }).then(async (res) => {
+      if (res.status === 204) return;
+      return handleResponse(res);
+    });
+  },
+
+  updateProfile(displayName: string) {
+    return fetch(`${BASE}/auth/me`, {
+      method: 'PATCH',
+      headers: getHeaders(),
+      body: JSON.stringify({ display_name: displayName }),
+    }).then(handleResponse);
+  },
+
+  adminResetPassword(userId: string) {
+    return fetch(`${BASE}/auth/admin-reset-password`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify({ user_id: userId }),
+    }).then(handleResponse);
+  },
 };
