@@ -253,6 +253,7 @@ export class PageSnakeDraft extends LitElement {
   ];
 
   @state() private seasonId = '';
+  @state() private leagueId = '';
   @state() private draftState: DraftState | null = null;
   @state() private _redirectScheduled = false;
   @state() private players: any[] = [];
@@ -282,6 +283,10 @@ export class PageSnakeDraft extends LitElement {
     await getMe();
     this.me = getCachedUser();
 
+    // Load season to get league_id for post-draft redirect
+    const season = await api.getSeason(this.seasonId);
+    this.leagueId = season.league_id ?? '';
+
     // Load players for the pool
     const result = await api.getPlayers(this.seasonId);
     this.players = result.players;
@@ -300,11 +305,13 @@ export class PageSnakeDraft extends LitElement {
       this.isDryRun = data.status === 'setup';
       this.initViewingTeam();
 
-      // Auto-redirect to season summary when draft completes
+      // Auto-redirect to league home when draft completes
       if (data.is_complete && !this._redirectScheduled) {
         this._redirectScheduled = true;
         setTimeout(() => {
-          window.location.href = `/season/${this.seasonId}`;
+          window.location.href = this.leagueId
+            ? `/league/${this.leagueId}`
+            : `/season/${this.seasonId}`;
         }, 3000);
       }
 
@@ -548,7 +555,8 @@ export class PageSnakeDraft extends LitElement {
         ? html`
           <div class="complete-banner">
             <div>Draft Complete!</div>
-            <a class="btn btn-primary" href="/season/${this.seasonId}"
+            <a class="btn btn-primary"
+               href="${this.leagueId ? `/league/${this.leagueId}` : `/season/${this.seasonId}`}"
                style="display:inline-block;margin-top:0.75rem;text-decoration:none;">
               Go to League →
             </a>

@@ -11,6 +11,7 @@ class User(UUIDMixin, TimestampMixin, Base):
     hashed_password: Mapped[str] = mapped_column(String(255), nullable=False)
     display_name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_admin: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
+    must_change_password: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False, server_default="false")
 
     leagues = relationship("League", back_populates="commissioner")
     teams = relationship("Team", back_populates="owner")
