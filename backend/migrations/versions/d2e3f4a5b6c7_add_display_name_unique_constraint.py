@@ -24,6 +24,19 @@ depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
     conn = op.get_bind()
+    # Deduplicate display_names by appending _2, _3, etc. to duplicates
+    conn.execute(sa.text("""
+        WITH ranked AS (
+            SELECT id,
+                   display_name,
+                   ROW_NUMBER() OVER (PARTITION BY display_name ORDER BY created_at, id) AS rn
+            FROM users
+        )
+        UPDATE users u
+        SET display_name = u.display_name || '_' || r.rn
+        FROM ranked r
+        WHERE u.id = r.id AND r.rn > 1;
+    """))
     conn.execute(sa.text("""
         DO $$
         BEGIN
