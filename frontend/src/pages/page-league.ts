@@ -44,6 +44,7 @@ export class PageLeague extends LitElement {
       .team-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.75rem; }
       .team-card { padding: 1rem; }
       .team-card .pos { font-size: 1.5rem; font-weight: 700; color: var(--accent); }
+      .team-card .owner-name { font-size: 0.8rem; color: var(--text-muted, #888); margin-top: 0.25rem; }
       .my-team-badge {
         display: inline-block; font-size: 0.7rem; font-weight: 700;
         background: var(--accent); color: var(--accent-dark);
@@ -551,6 +552,7 @@ export class PageLeague extends LitElement {
                               @click=${() => this.startTeamRename(t.id, t.name)}>✏️</button>
                       ${this.renameTeamSaved === t.id ? html`<span class="rename-ok">Saved!</span>` : ''}
                     ` : ''}
+                    ${t.owner_name ? html`<div class="owner-name">${t.owner_name}</div>` : ''}
                   </div>
                 `}
               </div>

@@ -2,7 +2,7 @@ import uuid
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.league import LeagueResponse
 
@@ -57,10 +57,18 @@ class TeamResponse(BaseModel):
     name: str
     draft_position: int
     owner_id: uuid.UUID | None
+    owner_name: str | None = None
     budget: float
     points: float
 
     model_config = {"from_attributes": True}
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_owner_name(cls, data):
+        if hasattr(data, "owner") and data.owner:
+            data.owner_name = data.owner.display_name
+        return data
 
 
 class SeasonJoinRequest(BaseModel):

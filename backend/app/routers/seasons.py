@@ -138,7 +138,9 @@ async def get_season(
     current_user: dict = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ):
-    stmt = select(Season).options(selectinload(Season.teams)).where(Season.id == season_id)
+    stmt = select(Season).options(
+        selectinload(Season.teams).selectinload(Team.owner)
+    ).where(Season.id == season_id)
     result = await db.execute(stmt)
     season = result.scalar_one_or_none()
     if not season:
