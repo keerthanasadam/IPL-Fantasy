@@ -268,8 +268,7 @@ export class PageMyLeagues extends LitElement {
                           ? html`
                               <div class="text-muted season-detail">
                                 👤 My Team:
-                                ${isEditingThis
-                                  ? html`
+                                ${isEditingThis ? html`
                                       <span>
                                         <span class="rename-form">
                                           <input
@@ -311,7 +310,9 @@ export class PageMyLeagues extends LitElement {
                                 }
                               </div>
                             `
-                          : html`<div class="text-muted season-detail">No team joined yet</div>`
+                          : league.user_role === 'member'
+                            ? html`<div class="text-muted season-detail">No team joined yet</div>`
+                            : ''
                         }
 
                         <div class="text-muted season-detail">
