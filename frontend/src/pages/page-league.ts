@@ -141,6 +141,8 @@ export class PageLeague extends LitElement {
   @state() private renameSuccess = false;
   @state() private showDeleteConfirm = false;
   @state() private deleteLoading = false;
+  @state() private showDeleteLeagueConfirm = false;
+  @state() private deleteLeagueLoading = false;
 
   // Settings — Draft Rules
   @state() private cfgRounds = 15;
@@ -355,6 +357,20 @@ export class PageLeague extends LitElement {
     }
   }
 
+  private async confirmDeleteLeague() {
+    this.deleteLeagueLoading = true;
+    this.error = '';
+    try {
+      await api.deleteLeague(this.leagueId);
+      window.location.href = '/my-leagues';
+    } catch (err: any) {
+      this.error = err.message;
+      this.showDeleteLeagueConfirm = false;
+    } finally {
+      this.deleteLeagueLoading = false;
+    }
+  }
+
   private async saveRules() {
     this.rulesLoading = true;
     this.error = '';
@@ -462,6 +478,7 @@ export class PageLeague extends LitElement {
 
     return html`
       ${this.showDeleteConfirm ? this.renderDeleteConfirm() : ''}
+      ${this.showDeleteLeagueConfirm ? this.renderDeleteLeagueConfirm() : ''}
       ${this.showClearConfirm ? this.renderClearConfirm() : ''}
       ${this.resetTempPw ? this.renderResetModal() : ''}
 
@@ -659,11 +676,16 @@ export class PageLeague extends LitElement {
           </div>
         </div>
         <div style="margin-top:1.5rem;">
-          <button class="btn btn-danger" ?disabled=${!isSetup || this.deleteLoading}
+          <button class="btn btn-danger" ?disabled=${this.deleteLoading}
                   @click=${() => this.showDeleteConfirm = true}>
             Delete Season
           </button>
-          ${!isSetup ? html`<p class="locked-notice" style="margin-top:0.5rem;">Can only delete seasons in SETUP status.</p>` : ''}
+        </div>
+        <div style="margin-top:1rem;">
+          <button class="btn btn-danger" ?disabled=${this.deleteLeagueLoading}
+                  @click=${() => this.showDeleteLeagueConfirm = true}>
+            Delete Entire League
+          </button>
         </div>
       </div>
 
@@ -807,6 +829,23 @@ export class PageLeague extends LitElement {
             <button class="btn btn-secondary" @click=${() => this.showDeleteConfirm = false}>Cancel</button>
             <button class="btn btn-danger" ?disabled=${this.deleteLoading} @click=${this.confirmDelete}>
               ${this.deleteLoading ? 'Deleting...' : 'Delete Season'}
+            </button>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  private renderDeleteLeagueConfirm() {
+    return html`
+      <div class="confirm-overlay">
+        <div class="confirm-dialog">
+          <h3>Delete "${this.league?.name}"?</h3>
+          <p>This will permanently delete the league and all its seasons, teams, and players. Cannot be undone.</p>
+          <div class="confirm-actions">
+            <button class="btn btn-secondary" @click=${() => this.showDeleteLeagueConfirm = false}>Cancel</button>
+            <button class="btn btn-danger" ?disabled=${this.deleteLeagueLoading} @click=${this.confirmDeleteLeague}>
+              ${this.deleteLeagueLoading ? 'Deleting...' : 'Delete League'}
             </button>
           </div>
         </div>

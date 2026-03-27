@@ -156,7 +156,21 @@ export const api = {
       const body = await res.json().catch(() => ({ detail: res.statusText }));
       throw new Error(body.detail || res.statusText);
     }
-    // 204 No Content
+  },
+
+  async deleteLeague(leagueId: string) {
+    const res = await fetch(`${BASE}/leagues/${leagueId}`, {
+      method: 'DELETE',
+      headers: getHeaders(),
+    });
+    if (res.status === 401) {
+      window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname)}`;
+      throw new Error('Unauthorized');
+    }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({ detail: res.statusText }));
+      throw new Error(body.detail || res.statusText);
+    }
   },
 
   clearPlayers(seasonId: string) {
