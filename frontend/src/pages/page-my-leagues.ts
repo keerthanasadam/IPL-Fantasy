@@ -315,7 +315,7 @@ export class PageMyLeagues extends LitElement {
                         }
 
                         <div class="text-muted season-detail">
-                          👥 ${myTeam ? '1' : '0'}/${season.team_count} teams
+                          👥 ${season.teams_joined}/${season.team_count} teams
                         </div>
 
                         ${scheduledTime ? html`

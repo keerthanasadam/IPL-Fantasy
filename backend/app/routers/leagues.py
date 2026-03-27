@@ -92,6 +92,7 @@ def _build_league_mine_response(league: League, user_id: uuid.UUID, user_role: s
                 label=season.label,
                 status=season.status,
                 team_count=season.team_count,
+                teams_joined=len(season.teams),
                 invite_code=season.invite_code,
                 draft_config=season.draft_config,
                 my_team=TeamInLeagueMine(
