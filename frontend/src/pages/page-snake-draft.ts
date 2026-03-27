@@ -5,6 +5,42 @@ import { getMe, getToken, isAdmin, getCachedUser, guardRoute } from '../services
 import { DraftWebSocket } from '../services/ws.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 
+// Modern color palette for team columns (up to 20 teams)
+const TEAM_COLORS = [
+  '#e74c3c', // red
+  '#3498db', // blue
+  '#2ecc71', // emerald
+  '#f39c12', // orange
+  '#9b59b6', // purple
+  '#1abc9c', // teal
+  '#e67e22', // carrot
+  '#e84393', // pink
+  '#00b894', // mint
+  '#6c5ce7', // indigo
+  '#fd79a8', // rose
+  '#00cec9', // cyan
+  '#ffeaa7', // lemon (header will use darker text)
+  '#a29bfe', // lavender
+  '#fab1a0', // salmon
+  '#55efc4', // aquamarine
+  '#74b9ff', // sky
+  '#dfe6e9', // silver (header will use darker text)
+  '#fdcb6e', // mustard
+  '#b2bec3', // grey
+];
+
+function getTeamColor(index: number): string {
+  return TEAM_COLORS[index % TEAM_COLORS.length];
+}
+
+// Returns true if a color is light enough to need dark text
+function isLightColor(hex: string): boolean {
+  const r = parseInt(hex.slice(1, 3), 16);
+  const g = parseInt(hex.slice(3, 5), 16);
+  const b = parseInt(hex.slice(5, 7), 16);
+  return (r * 299 + g * 587 + b * 114) / 1000 > 160;
+}
+
 interface DraftState {
   status: string;
   total_rounds: number;
@@ -45,15 +81,16 @@ export class PageSnakeDraft extends LitElement {
         min-width: 600px;
       }
       .board-header {
-        background: #f5a623;
-        color: #0f172a;
         padding: 0.5rem 0.3rem;
         font-weight: 700;
         text-align: center;
-        border-radius: 4px;
+        border-radius: 6px;
         white-space: nowrap;
         overflow: hidden;
         text-overflow: ellipsis;
+        text-transform: uppercase;
+        font-size: 0.7rem;
+        letter-spacing: 0.03em;
       }
       .board-round {
         background: #334155;
@@ -66,19 +103,21 @@ export class PageSnakeDraft extends LitElement {
         background: #1e293b;
         padding: 0.4rem 0.3rem;
         text-align: center;
-        border-radius: 4px;
+        border-radius: 6px;
         min-height: 40px;
         display: flex;
         align-items: center;
         justify-content: center;
+        transition: background 0.2s, border-color 0.2s;
+        border: 1px solid transparent;
       }
       .board-cell.picked {
-        background: #1a3a2a;
-        border: 1px solid #22c55e;
+        border-color: var(--team-color, #22c55e);
+        background: color-mix(in srgb, var(--team-color, #22c55e) 15%, #0f172a);
       }
       .board-cell.current {
-        background: #3a2a00;
         border: 2px solid #f5a623;
+        background: color-mix(in srgb, var(--team-color, #f5a623) 20%, #0f172a);
         animation: pulse 1.5s infinite;
       }
       @keyframes pulse {
@@ -208,13 +247,16 @@ export class PageSnakeDraft extends LitElement {
       .preview-banner span { font-weight: 600; }
 
       .board-header.my-team-header {
-        background: #92400e;
-        outline: 2px solid #f5a623;
+        outline: 2px solid #fff;
         outline-offset: -2px;
+        box-shadow: 0 0 12px rgba(255, 255, 255, 0.3);
       }
 
       .board-cell.my-team-cell {
-        background: rgba(245, 166, 35, 0.07);
+        background: color-mix(in srgb, var(--team-color, #f5a623) 8%, #1e293b);
+      }
+      .board-cell.my-team-cell.picked {
+        background: color-mix(in srgb, var(--team-color, #f5a623) 20%, #0f172a);
       }
 
       .viewer-info {
@@ -513,6 +555,12 @@ export class PageSnakeDraft extends LitElement {
       pickMap.set(`${p.round}-${p.team_id}`, p);
     }
 
+    // Build color map for each team
+    const teamColorMap = new Map<string, string>();
+    teams.forEach((t: any, i: number) => {
+      teamColorMap.set(t.id, getTeamColor(i));
+    });
+
     const rows = [];
     for (let r = 1; r <= state.total_rounds; r++) {
       rows.push(html`<div class="board-round">R${r}</div>`);
@@ -520,9 +568,11 @@ export class PageSnakeDraft extends LitElement {
       for (const team of teams) {
         const pick = pickMap.get(`${r}-${team.id}`);
         const isCurrent = !state.is_complete && state.current_round === r && state.current_team_id === team.id;
+        const color = teamColorMap.get(team.id) || '#f5a623';
 
         rows.push(html`
-          <div class="board-cell ${pick ? 'picked' : ''} ${isCurrent ? 'current' : ''} ${team.id === this.myTeamId ? 'my-team-cell' : ''}">
+          <div class="board-cell ${pick ? 'picked' : ''} ${isCurrent ? 'current' : ''} ${team.id === this.myTeamId ? 'my-team-cell' : ''}"
+               style="--team-color: ${color}">
             ${pick
               ? html`
                   <div>
@@ -531,7 +581,7 @@ export class PageSnakeDraft extends LitElement {
                   </div>
                 `
               : isCurrent
-              ? html`<div style="color: #f5a623; font-weight: 600;">ON CLOCK</div>`
+              ? html`<div style="color: ${color}; font-weight: 600;">ON CLOCK</div>`
               : ''}
           </div>
         `);
@@ -541,7 +591,12 @@ export class PageSnakeDraft extends LitElement {
     return html`
       <div class="draft-board" style="grid-template-columns: 50px repeat(${teams.length}, 1fr);">
         <div class="board-header" style="background: #334155; color: #e2e8f0;">Rd</div>
-        ${teams.map((t: any) => html`<div class="board-header ${t.id === this.myTeamId ? 'my-team-header' : ''}">${t.name}</div>`)}
+        ${teams.map((t: any, i: number) => {
+          const color = getTeamColor(i);
+          const textColor = isLightColor(color) ? '#0f172a' : '#ffffff';
+          return html`<div class="board-header ${t.id === this.myTeamId ? 'my-team-header' : ''}"
+                           style="background: ${color}; color: ${textColor};">${t.name}</div>`;
+        })}
         ${rows}
       </div>
     `;
