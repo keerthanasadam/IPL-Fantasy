@@ -189,9 +189,6 @@ async def delete_season(
     season = await db.get(Season, season_id)
     if not season:
         raise HTTPException(status_code=404, detail="Season not found")
-    if season.status != SeasonStatus.SETUP:
-        raise HTTPException(status_code=400, detail="Can only delete seasons in SETUP status")
-
     # Cascade in FK dependency order: picks/events → players → teams → season
     await db.execute(delete(SnakePick).where(SnakePick.season_id == season_id))
     await db.execute(delete(AuctionEvent).where(AuctionEvent.season_id == season_id))

@@ -1,13 +1,16 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.deps import get_current_admin, get_current_user, get_db
+from app.models.auction_event import AuctionEvent
 from app.models.league import League
+from app.models.player import Player
 from app.models.season import Season
+from app.models.snake_pick import SnakePick
 from app.models.team import Team
 from app.schemas.league import (
     LeagueCreate,
@@ -123,3 +126,27 @@ async def get_league(
     if not league:
         raise HTTPException(status_code=404, detail="League not found")
     return league
+
+
+@router.delete("/{league_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_league(
+    league_id: uuid.UUID,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    stmt = select(League).options(selectinload(League.seasons)).where(League.id == league_id)
+    result = await db.execute(stmt)
+    league = result.scalar_one_or_none()
+    if not league:
+        raise HTTPException(status_code=404, detail="League not found")
+
+    season_ids = [s.id for s in league.seasons]
+    if season_ids:
+        await db.execute(delete(SnakePick).where(SnakePick.season_id.in_(season_ids)))
+        await db.execute(delete(AuctionEvent).where(AuctionEvent.season_id.in_(season_ids)))
+        await db.execute(delete(Player).where(Player.season_id.in_(season_ids)))
+        await db.execute(delete(Team).where(Team.season_id.in_(season_ids)))
+        await db.execute(delete(Season).where(Season.id.in_(season_ids)))
+
+    await db.delete(league)
+    await db.commit()
