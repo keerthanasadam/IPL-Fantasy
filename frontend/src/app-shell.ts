@@ -14,6 +14,7 @@ import './pages/page-join.js';
 import './pages/page-my-leagues.js';
 import './pages/page-admin-create.js';
 import './pages/page-account.js';
+import './pages/page-public-dashboard.js';
 
 @customElement('app-shell')
 export class AppShell extends LitElement {
@@ -49,6 +50,7 @@ export class AppShell extends LitElement {
         { path: '/my-leagues', component: 'page-my-leagues' },
         { path: '/admin/create', component: 'page-admin-create' },
         { path: '/account', component: 'page-account' },
+        { path: '/dashboard/:seasonId', component: 'page-public-dashboard' },
         { path: '(.*)', redirect: '/' },
       ]);
     }

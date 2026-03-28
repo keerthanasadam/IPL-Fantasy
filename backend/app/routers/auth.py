@@ -77,6 +77,18 @@ async def update_me(
     return await update_user_profile(db, user, body.display_name)
 
 
+@router.patch("/users/{user_id}", response_model=UserResponse)
+async def admin_update_user(
+    user_id: uuid.UUID,
+    body: UserUpdate,
+    current_user: dict = Depends(get_current_admin),
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: update any user's display name."""
+    user = await _get_user_by_id(str(user_id), db)
+    return await update_user_profile(db, user, body.display_name)
+
+
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 async def forgot_password_endpoint(
     body: ForgotPasswordRequest,

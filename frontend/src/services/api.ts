@@ -241,4 +241,28 @@ export const api = {
       body: JSON.stringify({ user_id: userId }),
     }).then(handleResponse);
   },
+
+  // Public dashboard (no auth)
+  async getPublicDashboard(seasonId: string) {
+    const res = await fetch(`${BASE}/public/dashboard/${seasonId}`);
+    if (!res.ok) throw new Error('Failed to load dashboard');
+    return res.json();
+  },
+
+  // Admin: update scores
+  updateScores(seasonId: string) {
+    return fetch(`${BASE}/seasons/${seasonId}/update-scores`, {
+      method: 'POST',
+      headers: getHeaders(),
+    }).then(handleResponse);
+  },
+
+  // Admin: upload side pots
+  uploadSidePots(seasonId: string, data: any) {
+    return fetch(`${BASE}/seasons/${seasonId}/side-pots`, {
+      method: 'POST',
+      headers: getHeaders(),
+      body: JSON.stringify(data),
+    }).then(handleResponse);
+  },
 };

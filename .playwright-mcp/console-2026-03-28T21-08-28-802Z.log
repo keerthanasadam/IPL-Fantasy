@@ -1,0 +1,51 @@
+[    4371ms] [ERROR] ErrorUtils caught an error:
+
+[storage] storage bucket persistence denied (aquire-persistent-storage-denied)
+
+Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs. {column: 17870, clientTime: 1774732113, extra: Object, guardList: Array(0), hash: wgva1v} @ https://static.whatsapp.net/rsrc.php/v4/ya/r/R1pEz0OuWy4.js:78
+[   30644ms] [ERROR] Refused to display 'https://flows.whatsapp.net/' in a frame because it set 'X-Frame-Options' to 'deny'. @ chrome-error://chromewebdata/:0
+[   65675ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[   65676ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[   66000ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[   66000ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[   66730ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[   66730ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[   67872ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[   67872ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345287ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345287ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345288ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345288ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345288ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345288ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345650ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345651ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345651ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345651ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  345875ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  345876ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  346205ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  346205ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  346252ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  346252ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  346456ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  346456ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  347351ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  347351ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  347360ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  347360ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  347614ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  347614ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  353177ms] [ERROR] ErrorUtils caught an error:
+
+[storage] storage bucket persistence denied (aquire-persistent-storage-denied)
+
+Subsequent non-fatal errors won't be logged; see https://fburl.com/debugjs. {column: 17870, clientTime: 1774732461, extra: Object, guardList: Array(0), hash: yqcnyv} @ https://static.whatsapp.net/rsrc.php/v4/ya/r/R1pEz0OuWy4.js:78
+[  366116ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  366116ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  366506ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  366506ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  367102ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  367102ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0
+[  368165ms] [ERROR] Access to fetch at 'https://dit.whatsapp.net/deidentified_telemetry' from origin 'https://web.whatsapp.com' has been blocked by CORS policy: No 'Access-Control-Allow-Origin' header is present on the requested resource. @ https://web.whatsapp.com/:0
+[  368165ms] [ERROR] Failed to load resource: net::ERR_FAILED @ https://dit.whatsapp.net/deidentified_telemetry:0

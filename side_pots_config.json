@@ -1,0 +1,57 @@
+{
+  "teams": [
+    { "team_name": "FIGHTER",        "owner_name": "Vinod" },
+    { "team_name": "Vipers",         "owner_name": "Vijay" },
+    { "team_name": "SRH a mazaaka",  "owner_name": "Sridhar" },
+    { "team_name": "Lavada Runs",    "owner_name": "Ram" },
+    { "team_name": "Beach warriors", "owner_name": "Kamal" },
+    { "team_name": "Boom Boom",      "owner_name": "Adi" },
+    { "team_name": "Ee sala cup",    "owner_name": "Nishanth" },
+    { "team_name": "Vishwa",         "owner_name": "Vishwa" },
+    { "team_name": "Venuswamy",      "owner_name": "Srivatsav" },
+    { "team_name": "KAUSHIK",        "owner_name": "Kaushik" },
+    { "team_name": "Daredevils",     "owner_name": "Manish" }
+  ],
+
+  "captain_vc_picks": [
+    { "team_name": "FIGHTER",        "captain": "Salil Arora", "vice_captain": "Sai Kishore" },
+    { "team_name": "Vipers",         "captain": "Aniket Verma", "vice_captain": "Harpreet Brar" },
+    { "team_name": "SRH a mazaaka",  "captain": "Jaydev Unadkat", "vice_captain": "Karun Nair" },
+    { "team_name": "Lavada Runs",    "captain": "Anrich Nortje", "vice_captain": "Rahul Tewatia" },
+    { "team_name": "Beach warriors", "captain": "Tushar Deshpande", "vice_captain": "Vipraj Nigam" },
+    { "team_name": "Boom Boom",      "captain": "Deepak Chahar", "vice_captain": "Abishek Porel" },
+    { "team_name": "Ee sala cup",    "captain": "Auqib Nabi", "vice_captain": "Vaibhav Arora" },
+    { "team_name": "Vishwa",         "captain": "Mitchell Owen", "vice_captain": "Ben Dwarshuis" },
+    { "team_name": "Venuswamy",      "captain": "Nandre Burger", "vice_captain": "Abdul Samad" },
+    { "team_name": "KAUSHIK",        "captain": "Sandeep Sharma", "vice_captain": "Shashank Singh" },
+    { "team_name": "Daredevils",     "captain": "Prashant Veer", "vice_captain": "Harsh Dubey" }
+  ],
+
+  "awesome_threesome": [
+    { "team_name": "FIGHTER",        "batter": "Virat Kohli", "bowler": "Digvesh Rathi", "allrounder": "Aiden Markram" },
+    { "team_name": "Vipers",         "batter": "Ishan Kishan", "bowler": "Varun Chakravarthy", "allrounder": "Axar Patel" },
+    { "team_name": "SRH a mazaaka",  "batter": "Vaibhav Sooryavanshi", "bowler": "Jasprit Bumrah", "allrounder": "Marcus Stoinis" },
+    { "team_name": "Lavada Runs",    "batter": "Jos Buttler", "bowler": "Yuzvendra Chahal", "allrounder": "Rachin Ravindra" },
+    { "team_name": "Beach warriors", "batter": "Sanju Samson", "bowler": "Ravi Bishnoi", "allrounder": "Marco Jansen" },
+    { "team_name": "Boom Boom",      "batter": "Prabhsimran Singh", "bowler": "Deepak Chahar", "allrounder": "Hardik Pandya" },
+    { "team_name": "Ee sala cup",    "batter": "Shubman Gill", "bowler": "Arshdeep Singh", "allrounder": "Riyan Parag" },
+    { "team_name": "Vishwa",         "batter": "Nicholas Pooran", "bowler": "Lungi Ngidi", "allrounder": "Mitchell Owen" },
+    { "team_name": "Venuswamy",      "batter": "Rohit Sharma", "bowler": "Kuldeep Yadav", "allrounder": "Mitchell Marsh" },
+    { "team_name": "KAUSHIK",        "batter": "Ruturaj Gaikwad", "bowler": "Sandeep Sharma", "allrounder": "Abhishek Sharma" },
+    { "team_name": "Daredevils",     "batter": "Sai Sudharsan", "bowler": "Bhuvneshwar Kumar", "allrounder": "Krunal Pandya" }
+  ],
+
+  "predictions": [
+    { "team_name": "FIGHTER",        "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Vipers",         "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "SRH a mazaaka",  "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Lavada Runs",    "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Beach warriors", "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Boom Boom",      "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Ee sala cup",    "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Vishwa",         "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Venuswamy",      "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "KAUSHIK",        "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "Daredevils",     "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" }
+  ]
+}

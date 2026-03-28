@@ -1,0 +1,823 @@
+import { LitElement, html, css, nothing } from 'lit';
+import { customElement, state } from 'lit/decorators.js';
+import { sharedStyles } from '../styles/shared-styles.js';
+import { api } from '../services/api.js';
+import { getMe, isAdmin, type UserInfo } from '../services/auth.js';
+
+/* ── Types ── */
+interface Standing { rank: number; team_name: string; owner_name: string | null; total_points: number }
+interface BoundaryEntry { rank: number; team_name: string; owner_name: string | null; total_fours: number; total_sixes: number; boundary_points: number }
+interface CaptainEntry { rank: number; team_name: string; owner_name: string | null; captain: string | null; vice_captain: string | null; total_points: number }
+interface AwesomeEntry { rank: number; team_name: string; owner_name: string | null; batter: string | null; bowler: string | null; allrounder: string | null; total_points: number }
+interface Prediction { team_name: string; owner_name: string | null; ipl_winner: string | null; orange_cap: string | null; purple_cap: string | null; ipl_mvp: string | null }
+interface TopScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; fantasy_team: string | null; owner_name: string | null; draft_round: number | null }
+interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number }
+interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
+interface PrizePool { first: number; second: number; third: number; side_pot_each: number }
+
+interface DashboardData {
+  league_name: string;
+  season_label: string;
+  last_updated: string | null;
+  matches_played: number;
+  standings: Standing[];
+  boundary_pot: BoundaryEntry[];
+  captain_vc_pot: CaptainEntry[];
+  awesome_threesome_pot: AwesomeEntry[];
+  predictions: Prediction[];
+  top_scorers: TopScorer[];
+  rosters: Roster[];
+  prize_pool: PrizePool;
+}
+
+type SortOption = 'points-desc' | 'round-asc' | 'round-desc';
+
+const TEAM_COLORS = [
+  '#f5a623', '#3b82f6', '#22c55e', '#ef4444', '#a855f7',
+  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#eab308',
+];
+
+const MEDAL = ['', '\u{1F947}', '\u{1F948}', '\u{1F949}'];
+
+@customElement('page-public-dashboard')
+export class PagePublicDashboard extends LitElement {
+  static styles = [
+    sharedStyles,
+    css`
+      :host {
+        display: block;
+        scroll-behavior: smooth;
+      }
+
+      /* ── Hero ── */
+      .hero {
+        text-align: center;
+        padding: 3rem 1rem 2rem;
+      }
+      .hero-title {
+        font-size: 2.8rem;
+        font-weight: 800;
+        background: linear-gradient(135deg, var(--accent) 0%, #f97316 50%, #ef4444 100%);
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        background-clip: text;
+        line-height: 1.1;
+        margin-bottom: 0.5rem;
+      }
+      .hero-subtitle {
+        font-size: 1.15rem;
+        color: var(--text-muted);
+        margin-bottom: 1rem;
+      }
+      .hero-meta {
+        display: flex;
+        gap: 1rem;
+        justify-content: center;
+        align-items: center;
+        flex-wrap: wrap;
+        font-size: 0.85rem;
+        color: var(--text-subtle);
+      }
+      .matches-badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.3rem;
+        background: var(--bg-secondary);
+        padding: 0.3rem 0.8rem;
+        border-radius: 999px;
+        font-weight: 600;
+        color: var(--text-primary);
+        font-size: 0.8rem;
+      }
+      .prize-bar {
+        display: flex;
+        gap: 1.5rem;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-top: 1.25rem;
+        padding: 0.75rem 1.5rem;
+        background: var(--bg-card);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        display: inline-flex;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      .prize-item { display: flex; align-items: center; gap: 0.3rem; }
+      .prize-amount { color: var(--accent); }
+
+      /* ── Section titles ── */
+      .section-title {
+        font-size: 1.3rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin: 2.5rem 0 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+      }
+      .section-icon { font-size: 1.4rem; }
+
+      /* ── Grid layout ── */
+      .standings-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+      }
+
+      /* ── Glass card ── */
+      .glass-card {
+        background: var(--bg-card);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 1.25rem;
+        backdrop-filter: blur(10px);
+        transition: transform 0.15s, box-shadow 0.15s;
+      }
+      .glass-card:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+      }
+      .card-header {
+        font-size: 1rem;
+        font-weight: 700;
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+        color: var(--text-primary);
+      }
+
+      .card-subtitle {
+        font-size: 0.75rem;
+        color: var(--text-muted, #94a3b8);
+        margin: -0.75rem 0 0.75rem 0;
+        font-weight: 400;
+      }
+
+      /* ── Podium cards (top 3) ── */
+      .podium { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+      .podium-card {
+        flex: 1;
+        text-align: center;
+        padding: 0.75rem 0.5rem;
+        border-radius: 10px;
+        background: rgba(255,255,255,0.04);
+        border: 1px solid rgba(255,255,255,0.06);
+      }
+      .podium-card.gold { border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.08); }
+      .podium-card.silver { border-color: rgba(192,192,192,0.3); background: rgba(192,192,192,0.06); }
+      .podium-card.bronze { border-color: rgba(205,127,50,0.3); background: rgba(205,127,50,0.06); }
+      .podium-medal { font-size: 1.5rem; }
+      .podium-team { font-size: 0.85rem; font-weight: 700; margin: 0.25rem 0; color: var(--text-primary); }
+      .podium-owner { font-size: 0.72rem; color: var(--text-muted); }
+      .podium-points { font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-top: 0.25rem; }
+
+      /* ── Tables ── */
+      .dash-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
+      .dash-table th {
+        text-align: left;
+        padding: 0.45rem 0.5rem;
+        color: var(--text-subtle);
+        font-size: 0.72rem;
+        text-transform: uppercase;
+        letter-spacing: 0.03em;
+        border-bottom: 1px solid var(--border-color);
+      }
+      .dash-table td {
+        padding: 0.45rem 0.5rem;
+        border-bottom: 1px solid rgba(255,255,255,0.04);
+      }
+      .dash-table tr:nth-child(even) { background: rgba(255,255,255,0.03); }
+      .dash-table .rank { color: var(--text-subtle); font-weight: 600; width: 2rem; }
+      .dash-table .pts { font-weight: 700; color: var(--accent); text-align: right; }
+      .dash-table .team-name { font-weight: 600; }
+      .dash-table .owner { color: var(--text-muted); font-size: 0.78rem; }
+
+      /* ── Boundary bar ── */
+      .boundary-bar {
+        height: 6px;
+        border-radius: 3px;
+        background: rgba(255,255,255,0.06);
+        margin-top: 0.25rem;
+        overflow: hidden;
+      }
+      .boundary-fill {
+        height: 100%;
+        border-radius: 3px;
+        transition: width 0.6s ease;
+      }
+      .boundary-detail {
+        font-size: 0.7rem;
+        color: var(--text-subtle);
+        margin-top: 0.15rem;
+      }
+
+      /* ── Top scorers hero ── */
+      .top-scorer-heroes {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+      .scorer-hero {
+        padding: 1.5rem;
+        border-radius: 12px;
+        background: var(--bg-card);
+        border: 1px solid rgba(255,255,255,0.08);
+        position: relative;
+        overflow: hidden;
+      }
+      .scorer-hero::before {
+        content: '';
+        position: absolute;
+        top: 0; right: 0;
+        width: 120px; height: 120px;
+        border-radius: 50%;
+        opacity: 0.08;
+        transform: translate(30%, -30%);
+      }
+      .scorer-hero:first-child::before { background: var(--accent); }
+      .scorer-hero:last-child::before { background: #3b82f6; }
+      .scorer-rank-badge {
+        display: inline-block;
+        font-size: 0.7rem;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        margin-bottom: 0.75rem;
+      }
+      .scorer-rank-badge.first { background: rgba(245,166,35,0.15); color: var(--accent); }
+      .scorer-rank-badge.second { background: rgba(59,130,246,0.15); color: #60a5fa; }
+      .scorer-name { font-size: 1.4rem; font-weight: 800; color: var(--text-primary); }
+      .scorer-meta { font-size: 0.82rem; color: var(--text-muted); margin: 0.35rem 0; }
+      .scorer-points { font-size: 2rem; font-weight: 800; color: var(--accent); }
+      .scorer-points-label { font-size: 0.75rem; color: var(--text-subtle); font-weight: 600; text-transform: uppercase; }
+
+      /* ── Predictions table ── */
+      .predictions-grid {
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .predictions-grid .dash-table { min-width: 600px; }
+
+      /* ── Roster accordion ── */
+      .roster-controls {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+      .roster-search {
+        flex: 1;
+        min-width: 200px;
+        max-width: 400px;
+      }
+      .roster-sort {
+        width: auto;
+        min-width: 160px;
+      }
+      details.roster-team {
+        margin-bottom: 0.5rem;
+        border-radius: 10px;
+        overflow: hidden;
+        border: 1px solid rgba(255,255,255,0.06);
+        background: var(--bg-card);
+      }
+      details.roster-team[open] {
+        border-color: rgba(245,166,35,0.2);
+      }
+      summary.roster-summary {
+        padding: 0.75rem 1rem;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+        list-style: none;
+        transition: background 0.15s;
+        user-select: none;
+      }
+      summary.roster-summary::-webkit-details-marker { display: none; }
+      summary.roster-summary::before {
+        content: '\u25B6';
+        font-size: 0.65rem;
+        color: var(--text-subtle);
+        transition: transform 0.2s;
+      }
+      details.roster-team[open] > summary.roster-summary::before {
+        transform: rotate(90deg);
+      }
+      summary.roster-summary:hover { background: rgba(255,255,255,0.04); }
+      .roster-summary-rank {
+        font-size: 0.75rem;
+        color: var(--text-subtle);
+        min-width: 1.5rem;
+      }
+      .roster-summary-name { flex: 1; }
+      .roster-summary-owner { color: var(--text-muted); font-size: 0.82rem; font-weight: 400; }
+      .roster-summary-pts { font-weight: 700; color: var(--accent); }
+      .roster-players {
+        padding: 0 1rem 0.75rem;
+      }
+      .roster-players .dash-table td { font-size: 0.8rem; }
+      .roster-players .round-badge {
+        display: inline-block;
+        width: 1.6rem;
+        text-align: center;
+        font-size: 0.7rem;
+        font-weight: 700;
+        padding: 0.1rem 0;
+        border-radius: 4px;
+        background: var(--bg-secondary);
+        color: var(--text-muted);
+      }
+      .designation-badge {
+        display: inline-block;
+        font-size: 0.65rem;
+        font-weight: 700;
+        padding: 0.1rem 0.35rem;
+        border-radius: 4px;
+        text-transform: uppercase;
+      }
+      .des-BAT { background: rgba(59,130,246,0.15); color: #60a5fa; }
+      .des-BOWL { background: rgba(239,68,68,0.15); color: #f87171; }
+      .des-AR { background: rgba(168,85,247,0.15); color: #c084fc; }
+      .des-WK { background: rgba(34,197,94,0.15); color: #4ade80; }
+
+      .search-highlight {
+        background: rgba(245,166,35,0.25);
+        border-radius: 2px;
+        padding: 0 2px;
+      }
+
+      /* ── Admin ── */
+      .admin-section {
+        margin-top: 2rem;
+        padding: 1.25rem;
+        background: var(--bg-card);
+        border: 1px solid rgba(239,68,68,0.2);
+        border-radius: 12px;
+      }
+      .admin-section h3 { color: #f87171; }
+      .admin-msg { font-size: 0.85rem; margin-top: 0.75rem; padding: 0.5rem; border-radius: 6px; }
+      .admin-msg.success { background: rgba(34,197,94,0.1); color: #4ade80; }
+      .admin-msg.error { background: rgba(239,68,68,0.1); color: #f87171; }
+
+      /* ── States ── */
+      .loading-wrap, .error-wrap, .empty-wrap {
+        text-align: center;
+        padding: 4rem 1rem;
+      }
+      .spinner {
+        display: inline-block;
+        width: 40px; height: 40px;
+        border: 3px solid var(--border-color);
+        border-top-color: var(--accent);
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
+      }
+      @keyframes spin { to { transform: rotate(360deg); } }
+      .error-wrap h2 { color: #ef4444; }
+      .empty-msg { color: var(--text-muted); font-size: 0.95rem; }
+
+      /* ── Responsive ── */
+      @media (max-width: 768px) {
+        .hero-title { font-size: 2rem; }
+        .standings-grid { grid-template-columns: 1fr; }
+        .top-scorer-heroes { grid-template-columns: 1fr; }
+        .podium { flex-direction: column; }
+        .scorer-name { font-size: 1.15rem; }
+        .scorer-points { font-size: 1.5rem; }
+        .prize-bar { flex-direction: column; gap: 0.5rem; padding: 0.75rem 1rem; }
+      }
+    `,
+  ];
+
+  @state() private seasonId = '';
+  @state() private data: DashboardData | null = null;
+  @state() private loading = true;
+  @state() private error = '';
+  @state() private user: UserInfo | null = null;
+  @state() private searchQuery = '';
+  @state() private sortOption: SortOption = 'points-desc';
+  @state() private adminUpdating = false;
+  @state() private adminMsg = '';
+  @state() private adminMsgType: 'success' | 'error' = 'success';
+
+  /* Vaadin Router lifecycle */
+  onAfterEnter(location: any) {
+    this.seasonId = location.params.seasonId;
+    this._loadDashboard();
+    this._loadUser();
+  }
+
+  private async _loadUser() {
+    try { this.user = await getMe(); } catch { /* not logged in, fine */ }
+  }
+
+  private async _loadDashboard() {
+    this.loading = true;
+    this.error = '';
+    try {
+      this.data = await api.getPublicDashboard(this.seasonId);
+    } catch (e: any) {
+      this.error = e.message || 'Failed to load dashboard';
+    } finally {
+      this.loading = false;
+    }
+  }
+
+  private _teamColor(index: number) {
+    return TEAM_COLORS[index % TEAM_COLORS.length];
+  }
+
+  private _sortPlayers(players: RosterPlayer[]): RosterPlayer[] {
+    const arr = [...players];
+    switch (this.sortOption) {
+      case 'points-desc': return arr.sort((a, b) => b.total_points - a.total_points);
+      case 'round-asc': return arr.sort((a, b) => a.draft_round - b.draft_round);
+      case 'round-desc': return arr.sort((a, b) => b.draft_round - a.draft_round);
+      default: return arr;
+    }
+  }
+
+  private _filteredRosters(): Roster[] {
+    if (!this.data) return [];
+    const q = this.searchQuery.trim().toLowerCase();
+    if (!q) return this.data.rosters;
+    return this.data.rosters.filter(r =>
+      r.players.some(p => p.player_name.toLowerCase().includes(q))
+    );
+  }
+
+  private async _updateScores() {
+    this.adminUpdating = true;
+    this.adminMsg = '';
+    try {
+      await api.updateScores(this.seasonId);
+      this.adminMsg = 'Scores updated successfully!';
+      this.adminMsgType = 'success';
+      await this._loadDashboard();
+    } catch (e: any) {
+      this.adminMsg = e.message || 'Update failed';
+      this.adminMsgType = 'error';
+    } finally {
+      this.adminUpdating = false;
+    }
+  }
+
+  render() {
+    if (this.loading) {
+      return html`<div class="loading-wrap"><div class="spinner"></div><p style="margin-top:1rem;color:var(--text-muted)">Loading dashboard...</p></div>`;
+    }
+    if (this.error) {
+      return html`<div class="error-wrap"><h2>Something went wrong</h2><p class="text-muted" style="margin-top:0.5rem">${this.error}</p><button class="btn btn-primary" style="margin-top:1rem" @click=${this._loadDashboard}>Retry</button></div>`;
+    }
+    if (!this.data) {
+      return html`<div class="empty-wrap"><p class="empty-msg">No dashboard data available.</p></div>`;
+    }
+
+    const d = this.data;
+    return html`
+      ${this._renderHero(d)}
+      ${this._renderStandingsGrid(d)}
+      ${this._renderPredictions(d)}
+      ${this._renderTopScorers(d)}
+      ${this._renderRosters(d)}
+      ${this.user && isAdmin() ? this._renderAdmin() : nothing}
+    `;
+  }
+
+  /* ── Hero ── */
+  private _renderHero(d: DashboardData) {
+    const updated = d.last_updated ? new Date(d.last_updated).toLocaleString() : 'Never';
+    return html`
+      <div class="hero">
+        <div class="hero-title">${d.league_name}</div>
+        <div class="hero-subtitle">${d.season_label}</div>
+        <div class="hero-meta">
+          <span>Last updated: ${updated}</span>
+          <span class="matches-badge">${d.matches_played} matches played</span>
+        </div>
+        ${d.prize_pool ? html`
+          <div style="margin-top:1.25rem;text-align:center;">
+            <div class="prize-bar">
+              <span class="prize-item">\u{1F947} <span class="prize-amount">\u20B9${d.prize_pool.first}</span></span>
+              <span class="prize-item">\u{1F948} <span class="prize-amount">\u20B9${d.prize_pool.second}</span></span>
+              <span class="prize-item">\u{1F949} <span class="prize-amount">\u20B9${d.prize_pool.third}</span></span>
+              <span class="prize-item">Side Pots: <span class="prize-amount">\u20B9${d.prize_pool.side_pot_each} each</span></span>
+            </div>
+          </div>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  /* ── 4-card standings grid ── */
+  private _renderStandingsGrid(d: DashboardData) {
+    return html`
+      <div class="standings-grid">
+        ${this._renderLeaderboard(d.standings)}
+        ${this._renderBoundaryPot(d.boundary_pot)}
+        ${this._renderCaptainPot(d.captain_vc_pot)}
+        ${this._renderAwesomePot(d.awesome_threesome_pot)}
+      </div>
+    `;
+  }
+
+  /* ── Leaderboard ── */
+  private _renderLeaderboard(standings: Standing[]) {
+    if (!standings.length) {
+      return html`<div class="glass-card"><div class="card-header">\u{1F3C6} Owner Leaderboard</div><p class="empty-msg">No scores yet</p></div>`;
+    }
+    const top3 = standings.slice(0, 3);
+    const rest = standings.slice(3);
+    const podiumClass = ['gold', 'silver', 'bronze'];
+    return html`
+      <div class="glass-card">
+        <div class="card-header">\u{1F3C6} Owner Leaderboard</div>
+        <div class="podium">
+          ${top3.map((s, i) => html`
+            <div class="podium-card ${podiumClass[i]}">
+              <div class="podium-medal">${MEDAL[i + 1]}</div>
+              <div class="podium-team">${s.team_name}</div>
+              <div class="podium-owner">${s.owner_name || '-'}</div>
+              <div class="podium-points">${s.total_points.toLocaleString()}</div>
+            </div>
+          `)}
+        </div>
+        ${rest.length ? html`
+          <table class="dash-table">
+            <thead><tr><th>#</th><th>Team</th><th>Owner</th><th style="text-align:right">Pts</th></tr></thead>
+            <tbody>
+              ${rest.map(s => html`
+                <tr>
+                  <td class="rank">${s.rank}</td>
+                  <td class="team-name">${s.team_name}</td>
+                  <td class="owner">${s.owner_name || '-'}</td>
+                  <td class="pts">${s.total_points.toLocaleString()}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        ` : nothing}
+      </div>
+    `;
+  }
+
+  /* ── Boundary Pot ── */
+  private _renderBoundaryPot(entries: BoundaryEntry[]) {
+    if (!entries.length) {
+      return html`<div class="glass-card"><div class="card-header">\u{1F525} Mellaga Kodatava Gattiga</div><p class="empty-msg">No boundary data yet</p></div>`;
+    }
+    const maxB = Math.max(...entries.map(e => e.boundary_points), 1);
+    return html`
+      <div class="glass-card">
+        <div class="card-header">\u{1F525} Mellaga Kodatava Gattiga</div>
+        <div class="card-subtitle">4s = 0.5 pts · 6s = 2 pts</div>
+        <table class="dash-table">
+          <thead><tr><th>#</th><th>Team</th><th style="text-align:right">Points</th></tr></thead>
+          <tbody>
+            ${entries.map((e, i) => html`
+              <tr>
+                <td class="rank">${e.rank}</td>
+                <td>
+                  <div class="team-name">${e.team_name}</div>
+                  <div class="owner">${e.owner_name || '-'}</div>
+                  <div class="boundary-bar"><div class="boundary-fill" style="width:${(e.boundary_points / maxB) * 100}%;background:${this._teamColor(i)}"></div></div>
+                  <div class="boundary-detail">${e.total_fours} fours (${(e.total_fours * 0.5).toFixed(1)}) · ${e.total_sixes} sixes (${(e.total_sixes * 2).toFixed(1)})</div>
+                </td>
+                <td class="pts">${e.boundary_points.toFixed(1)}</td>
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /* ── Captain/VC Pot ── */
+  private _renderCaptainPot(entries: CaptainEntry[]) {
+    if (!entries.length) {
+      return html`<div class="glass-card"><div class="card-header">\u{1F9E2} C/VC from Rounds 9-16</div><p class="empty-msg">No captain data yet</p></div>`;
+    }
+    return html`
+      <div class="glass-card">
+        <div class="card-header">\u{1F9E2} C/VC from Rounds 9-16</div>
+        <table class="dash-table">
+          <thead><tr><th>#</th><th>Team</th><th>Captain</th><th>VC</th><th style="text-align:right">Pts</th></tr></thead>
+          <tbody>
+            ${entries.map(e => html`
+              <tr>
+                <td class="rank">${e.rank}</td>
+                <td>
+                  <div class="team-name">${e.team_name}</div>
+                  <div class="owner">${e.owner_name || '-'}</div>
+                </td>
+                <td style="font-size:0.78rem">${e.captain || '-'}</td>
+                <td style="font-size:0.78rem">${e.vice_captain || '-'}</td>
+                <td class="pts">${e.total_points.toLocaleString()}</td>
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /* ── Awesome Threesome ── */
+  private _renderAwesomePot(entries: AwesomeEntry[]) {
+    if (!entries.length) {
+      return html`<div class="glass-card"><div class="card-header">\u26A1 Awesome Threesome</div><p class="empty-msg">No data yet</p></div>`;
+    }
+    return html`
+      <div class="glass-card">
+        <div class="card-header">\u26A1 Awesome Threesome</div>
+        <table class="dash-table">
+          <thead><tr><th>#</th><th>Team</th><th>Players</th><th style="text-align:right">Pts</th></tr></thead>
+          <tbody>
+            ${entries.map(e => html`
+              <tr>
+                <td class="rank">${e.rank}</td>
+                <td>
+                  <div class="team-name">${e.team_name}</div>
+                  <div class="owner">${e.owner_name || '-'}</div>
+                </td>
+                <td style="font-size:0.75rem;color:var(--text-muted);line-height:1.4">
+                  ${e.batter || '-'}<br>${e.bowler || '-'}<br>${e.allrounder || '-'}
+                </td>
+                <td class="pts">${e.total_points.toLocaleString()}</td>
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /* ── Predictions ── */
+  private _renderPredictions(d: DashboardData) {
+    if (!d.predictions.length) return nothing;
+    return html`
+      <div class="section-title"><span class="section-icon">\u{1F3AF}</span> Picku Cheppu Cash Kottu</div>
+      <div class="glass-card predictions-grid">
+        <table class="dash-table">
+          <thead>
+            <tr>
+              <th>Team</th>
+              <th>IPL Winner</th>
+              <th>Orange Cap</th>
+              <th>Purple Cap</th>
+              <th>MVP</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${d.predictions.map(p => html`
+              <tr>
+                <td>
+                  <div class="team-name">${p.team_name}</div>
+                  <div class="owner">${p.owner_name || '-'}</div>
+                </td>
+                <td>${p.ipl_winner || '-'}</td>
+                <td>${p.orange_cap || '-'}</td>
+                <td>${p.purple_cap || '-'}</td>
+                <td>${p.ipl_mvp || '-'}</td>
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }
+
+  /* ── Top Scorers ── */
+  private _renderTopScorers(d: DashboardData) {
+    if (!d.top_scorers.length) return nothing;
+    const top2 = d.top_scorers.slice(0, 2);
+    const rest = d.top_scorers.slice(2, 10);
+    return html`
+      <div class="section-title"><span class="section-icon">\u2B50</span> Top Scorers</div>
+      <div class="top-scorer-heroes">
+        ${top2.map((s, i) => html`
+          <div class="scorer-hero">
+            <div class="scorer-rank-badge ${i === 0 ? 'first' : 'second'}">#${i + 1} Overall</div>
+            <div class="scorer-name">${s.player_name}</div>
+            <div class="scorer-meta">
+              ${s.ipl_team || 'Unknown'} \u00B7 ${s.designation || 'N/A'}
+              ${s.fantasy_team ? html` \u00B7 <strong>${s.fantasy_team}</strong>` : nothing}
+              ${s.draft_round ? html` \u00B7 Rd ${s.draft_round}` : nothing}
+            </div>
+            <div class="scorer-points">${s.total_points.toLocaleString()}</div>
+            <div class="scorer-points-label">Fantasy Points</div>
+          </div>
+        `)}
+      </div>
+      ${rest.length ? html`
+        <div class="glass-card">
+          <table class="dash-table">
+            <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Role</th><th>Fantasy Team</th><th style="text-align:right">Pts</th></tr></thead>
+            <tbody>
+              ${rest.map((s, i) => html`
+                <tr>
+                  <td class="rank">${i + 3}</td>
+                  <td class="team-name">${s.player_name}</td>
+                  <td style="font-size:0.78rem">${s.ipl_team || '-'}</td>
+                  <td><span class="designation-badge des-${s.designation || ''}">${s.designation || '-'}</span></td>
+                  <td style="font-size:0.78rem">${s.fantasy_team || '-'}</td>
+                  <td class="pts">${s.total_points.toLocaleString()}</td>
+                </tr>
+              `)}
+            </tbody>
+          </table>
+        </div>
+      ` : nothing}
+    `;
+  }
+
+  /* ── Rosters ── */
+  private _renderRosters(d: DashboardData) {
+    if (!d.rosters.length) return nothing;
+    const filtered = this._filteredRosters();
+    const q = this.searchQuery.trim().toLowerCase();
+    return html`
+      <div class="section-title"><span class="section-icon">\u{1F465}</span> Owners and Players</div>
+      <div class="roster-controls">
+        <input
+          class="roster-search"
+          type="text"
+          placeholder="Search player to find owner..."
+          .value=${this.searchQuery}
+          @input=${(e: Event) => { this.searchQuery = (e.target as HTMLInputElement).value; }}
+        />
+        <select class="roster-sort" @change=${(e: Event) => { this.sortOption = (e.target as HTMLSelectElement).value as SortOption; }}>
+          <option value="points-desc">Points (High-Low)</option>
+          <option value="round-asc">Round (Low-High)</option>
+          <option value="round-desc">Round (High-Low)</option>
+        </select>
+      </div>
+      ${filtered.length === 0 ? html`<p class="empty-msg">No players found matching "${this.searchQuery}"</p>` : nothing}
+      ${filtered.map((r, ri) => {
+        const sorted = this._sortPlayers(r.players);
+        const isOpen = q.length > 0;
+        return html`
+          <details class="roster-team" ?open=${isOpen}>
+            <summary class="roster-summary">
+              <span class="roster-summary-rank">${ri + 1}.</span>
+              <span class="roster-summary-name">${r.team_name}</span>
+              <span class="roster-summary-owner">${r.owner_name || ''}</span>
+              <span class="roster-summary-pts">${r.total_points.toLocaleString()} pts</span>
+            </summary>
+            <div class="roster-players">
+              <table class="dash-table">
+                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th>Role</th><th style="text-align:right">Pts</th><th style="text-align:right">4s+6s</th></tr></thead>
+                <tbody>
+                  ${sorted.map(p => {
+                    const nameMatch = q && p.player_name.toLowerCase().includes(q);
+                    return html`
+                      <tr>
+                        <td><span class="round-badge">${p.draft_round}</span></td>
+                        <td class="team-name">${nameMatch ? this._highlightName(p.player_name, q) : p.player_name}</td>
+                        <td style="font-size:0.78rem">${p.ipl_team || '-'}</td>
+                        <td><span class="designation-badge des-${p.designation || ''}">${p.designation || '-'}</span></td>
+                        <td class="pts">${p.total_points.toLocaleString()}</td>
+                        <td style="text-align:right;font-size:0.78rem;color:var(--text-muted)">${p.total_boundaries}</td>
+                      </tr>
+                    `;
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </details>
+        `;
+      })}
+    `;
+  }
+
+  private _highlightName(name: string, query: string) {
+    const idx = name.toLowerCase().indexOf(query);
+    if (idx === -1) return html`${name}`;
+    const before = name.slice(0, idx);
+    const match = name.slice(idx, idx + query.length);
+    const after = name.slice(idx + query.length);
+    return html`${before}<span class="search-highlight">${match}</span>${after}`;
+  }
+
+  /* ── Admin ── */
+  private _renderAdmin() {
+    return html`
+      <div class="admin-section">
+        <h3>Admin Controls</h3>
+        <div style="margin-top:0.75rem;display:flex;gap:0.75rem;align-items:center;flex-wrap:wrap">
+          <button class="btn btn-primary" ?disabled=${this.adminUpdating} @click=${this._updateScores}>
+            ${this.adminUpdating ? html`<span class="spinner" style="width:16px;height:16px;border-width:2px;margin-right:0.4rem"></span> Updating...` : 'Update Points'}
+          </button>
+        </div>
+        ${this.adminMsg ? html`<div class="admin-msg ${this.adminMsgType}">${this.adminMsg}</div>` : nothing}
+      </div>
+    `;
+  }
+}

@@ -12,6 +12,17 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     CORS_ORIGINS: str = "http://localhost:5173"
 
+    # Cricbattle scraper
+    CRICBATTLE_EMAIL: str = ""
+    CRICBATTLE_PASSWORD: str = ""
+    CRICBATTLE_LEAGUE_ID: str = "676423"
+
+    # Auto-scrape schedule: comma-separated hours in 24h format (IST)
+    # e.g. "1,13" means 1:00 AM and 1:00 PM IST daily
+    SCRAPE_HOURS_IST: str = "1,13"
+    # Season ID to auto-scrape (set this after league is created)
+    SCRAPE_SEASON_ID: str = ""
+
     model_config = {"env_file": ".env", "extra": "ignore"}
 
     @model_validator(mode="after")
