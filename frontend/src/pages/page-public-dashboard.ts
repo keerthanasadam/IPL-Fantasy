@@ -488,7 +488,7 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderPredictions(d)}
       ${this._renderTopScorers(d)}
       ${this._renderRosters(d)}
-      ${this.user && isAdmin() ? this._renderAdmin() : nothing}
+      ${/* Admin controls moved to league settings page */ nothing}
     `;
   }
 

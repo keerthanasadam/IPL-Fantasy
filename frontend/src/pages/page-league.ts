@@ -145,6 +145,11 @@ export class PageLeague extends LitElement {
   @state() private showDeleteLeagueConfirm = false;
   @state() private deleteLeagueLoading = false;
 
+  // Score update
+  @state() private scoreUpdating = false;
+  @state() private scoreMsg = '';
+  @state() private scoreMsgType: 'success' | 'error' = 'success';
+
   // Settings — Draft Rules
   @state() private cfgRounds = 15;
   @state() private cfgPickTimer = 0;
@@ -327,6 +332,22 @@ export class PageLeague extends LitElement {
   }
 
   // ── Settings actions ──────────────────────────────────────────────────────
+
+  private async updateScores() {
+    if (!this.season) return;
+    this.scoreUpdating = true;
+    this.scoreMsg = '';
+    try {
+      await api.updateScores(this.season.id);
+      this.scoreMsg = 'Scores updated successfully!';
+      this.scoreMsgType = 'success';
+    } catch (e: any) {
+      this.scoreMsg = e.message || 'Update failed';
+      this.scoreMsgType = 'error';
+    } finally {
+      this.scoreUpdating = false;
+    }
+  }
 
   private async saveRename() {
     if (!this.renameLabel.trim()) return;
