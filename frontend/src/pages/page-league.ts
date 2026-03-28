@@ -486,12 +486,17 @@ export class PageLeague extends LitElement {
       <div style="max-width:900px;margin:2rem auto;padding:0 1rem;">
         <div class="flex justify-between items-center">
           <h1>${this.league.name}</h1>
-          ${this.season ? html`
-            <span class="badge ${this.season.status === 'drafting' ? 'badge-gold' : this.season.status === 'active' || this.season.status === 'completed' ? 'badge-green' : 'badge-gray'}"
-                  style="font-size:1rem;padding:0.4rem 1rem;">
-              ${this.season.status.toUpperCase()}
-            </span>
-          ` : ''}
+          <div style="display:flex;align-items:center;gap:0.75rem;">
+            ${this.season ? html`
+              <a href="/dashboard/${this.season.id}" class="btn btn-sm btn-primary" style="text-decoration:none;">
+                📊 Dashboard
+              </a>
+              <span class="badge ${this.season.status === 'drafting' ? 'badge-gold' : this.season.status === 'active' || this.season.status === 'completed' ? 'badge-green' : 'badge-gray'}"
+                    style="font-size:1rem;padding:0.4rem 1rem;">
+                ${this.season.status.toUpperCase()}
+              </span>
+            ` : ''}
+          </div>
         </div>
 
         ${!this.season ? html`<p class="text-muted">No seasons yet.</p>` : html`
