@@ -2,7 +2,7 @@ import { LitElement, html, css, nothing } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import { api } from '../services/api.js';
-import { getMe, isAdmin, type UserInfo } from '../services/auth.js';
+import { isAdmin } from '../services/auth.js';
 
 /* ── Types ── */
 interface Standing { rank: number; team_name: string; owner_name: string | null; total_points: number }
@@ -401,7 +401,6 @@ export class PagePublicDashboard extends LitElement {
   @state() private data: DashboardData | null = null;
   @state() private loading = true;
   @state() private error = '';
-  @state() private user: UserInfo | null = null;
   @state() private searchQuery = '';
   @state() private sortOption: SortOption = 'points-desc';
   @state() private adminUpdating = false;
@@ -412,11 +411,6 @@ export class PagePublicDashboard extends LitElement {
   onAfterEnter(location: any) {
     this.seasonId = location.params.seasonId;
     this._loadDashboard();
-    this._loadUser();
-  }
-
-  private async _loadUser() {
-    try { this.user = await getMe(); } catch { /* not logged in, fine */ }
   }
 
   private async _loadDashboard() {
@@ -488,7 +482,7 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderPredictions(d)}
       ${this._renderTopScorers(d)}
       ${this._renderRosters(d)}
-      ${/* Admin controls moved to league settings page */ nothing}
+      ${isAdmin() ? this._renderAdmin() : nothing}
     `;
   }
 
