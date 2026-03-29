@@ -701,7 +701,7 @@ export class PagePublicDashboard extends LitElement {
             <div class="scorer-rank-badge ${i === 0 ? 'first' : 'second'}">#${i + 1} Overall</div>
             <div class="scorer-name">${s.player_name}</div>
             <div class="scorer-meta">
-              ${s.ipl_team || 'Unknown'} \u00B7 ${s.designation || 'N/A'}
+              ${s.ipl_team || 'Unknown'}
               ${s.fantasy_team ? html` \u00B7 <strong>${s.fantasy_team}</strong>` : nothing}
               ${s.draft_round ? html` \u00B7 Rd ${s.draft_round}` : nothing}
             </div>
@@ -713,14 +713,13 @@ export class PagePublicDashboard extends LitElement {
       ${rest.length ? html`
         <div class="glass-card">
           <table class="dash-table">
-            <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Role</th><th>Fantasy Team</th><th style="text-align:right">Pts</th></tr></thead>
+            <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Fantasy Team</th><th style="text-align:right">Pts</th></tr></thead>
             <tbody>
               ${rest.map((s, i) => html`
                 <tr>
                   <td class="rank">${i + 3}</td>
                   <td class="team-name">${s.player_name}</td>
                   <td style="font-size:0.78rem">${s.ipl_team || '-'}</td>
-                  <td><span class="designation-badge des-${s.designation || ''}">${s.designation || '-'}</span></td>
                   <td style="font-size:0.78rem">${s.fantasy_team || '-'}</td>
                   <td class="pts">${s.total_points.toLocaleString()}</td>
                 </tr>
@@ -767,7 +766,7 @@ export class PagePublicDashboard extends LitElement {
             </summary>
             <div class="roster-players">
               <table class="dash-table">
-                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th>Role</th><th style="text-align:right">Pts</th><th style="text-align:right">4s+6s</th></tr></thead>
+                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th style="text-align:right">Pts</th><th style="text-align:right">4s+6s</th></tr></thead>
                 <tbody>
                   ${sorted.map(p => {
                     const nameMatch = q && p.player_name.toLowerCase().includes(q);
@@ -776,7 +775,6 @@ export class PagePublicDashboard extends LitElement {
                         <td><span class="round-badge">${p.draft_round}</span></td>
                         <td class="team-name">${nameMatch ? this._highlightName(p.player_name, q) : p.player_name}</td>
                         <td style="font-size:0.78rem">${p.ipl_team || '-'}</td>
-                        <td><span class="designation-badge des-${p.designation || ''}">${p.designation || '-'}</span></td>
                         <td class="pts">${p.total_points.toLocaleString()}</td>
                         <td style="text-align:right;font-size:0.78rem;color:var(--text-muted)">${p.total_boundaries}</td>
                       </tr>
