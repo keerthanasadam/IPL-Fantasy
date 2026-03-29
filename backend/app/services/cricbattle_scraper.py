@@ -1,7 +1,7 @@
 """Cricbattle score scraper: logs in, fetches match scores, upserts into DB."""
 
+import json
 import logging
-import re
 import uuid
 from decimal import Decimal
 
@@ -17,16 +17,31 @@ from app.models.player_match_score import PlayerMatchScore
 
 logger = logging.getLogger(__name__)
 
-CRICBATTLE_LOGIN_URL = "https://www.cricbattle.com/Account/Login"
-CRICBATTLE_SCORES_URL = (
+# Step 1: GET this page to trigger session cookie
+CRICBATTLE_LOGIN_START_URL = "https://www.cricbattle.com/Account/LoginRegister/ByEmail"
+# Step 2: POST email here
+CRICBATTLE_LOGIN_EMAIL_URL = "https://www.cricbattle.com/Account/Login/ByEmail"
+# Step 3: POST password here (with IsPassword=True)
+CRICBATTLE_LOGIN_OPTIONS_URL = "https://www.cricbattle.com/Account/Login/Options"
+
+CRICBATTLE_SCORES_PAGE_URL = (
+    "https://fantasycricket.cricbattle.com/MyFantasy/"
+    "Player-Scores-Breakdown?LeagueModel=SalaryCap&LeagueId={league_id}"
+)
+CRICBATTLE_SCORES_API_URL = (
     "https://fantasycricket.cricbattle.com/MyFantasy/"
     "PlayerScoresBreakdown/GetLeaguePlayerScoresBreakdownData"
 )
-CRICBATTLE_BASE_URL = "https://fantasycricket.cricbattle.com"
 
 
 async def _get_authenticated_client() -> httpx.AsyncClient:
-    """Create an httpx client and authenticate with Cricbattle."""
+    """Create an httpx client and authenticate with Cricbattle.
+
+    Cricbattle uses a 3-step email+password login:
+      1. GET /Account/LoginRegister/ByEmail  (establishes session)
+      2. POST /Account/Login/ByEmail         (submit email)
+      3. POST /Account/Login/Options         (submit password with IsPassword=True)
+    """
     client = httpx.AsyncClient(
         follow_redirects=True,
         timeout=httpx.Timeout(30.0),
@@ -35,23 +50,44 @@ async def _get_authenticated_client() -> httpx.AsyncClient:
         },
     )
 
-    # GET login page to extract verification token
-    login_page = await client.get(CRICBATTLE_LOGIN_URL)
-    login_page.raise_for_status()
-    soup = BeautifulSoup(login_page.text, "html.parser")
-    token_input = soup.find("input", {"name": "__RequestVerificationToken"})
-    token = token_input["value"] if token_input else ""
+    # Step 1: establish session
+    await client.get(CRICBATTLE_LOGIN_START_URL)
 
-    # POST login
-    login_data = {
+    # Step 2: submit email
+    resp = await client.post(CRICBATTLE_LOGIN_EMAIL_URL, data={
+        "IsUseOfficialEmail": "False",
+        "CountryId": "3",
         "Email": settings.CRICBATTLE_EMAIL,
-        "Password": settings.CRICBATTLE_PASSWORD,
-        "__RequestVerificationToken": token,
-    }
-    login_resp = await client.post(CRICBATTLE_LOGIN_URL, data=login_data)
-    login_resp.raise_for_status()
-    logger.info("Cricbattle login completed (status=%s)", login_resp.status_code)
+    })
+    resp.raise_for_status()
 
+    # Step 3: extract hidden fields from options page, add password
+    soup = BeautifulSoup(resp.text, "html.parser")
+    form = soup.find("form", {"action": "/Account/Login/Options"})
+    if not form:
+        raise RuntimeError(
+            f"Login options form not found (landed on: {resp.url}). "
+            "Check CRICBATTLE_EMAIL is correct."
+        )
+    hidden = {
+        inp.get("name"): inp.get("value", "")
+        for inp in form.find_all("input")
+        if inp.get("name")
+    }
+    hidden["Password"] = settings.CRICBATTLE_PASSWORD
+    hidden["IsPassword"] = "True"
+
+    login_resp = await client.post(CRICBATTLE_LOGIN_OPTIONS_URL, data=hidden)
+    login_resp.raise_for_status()
+
+    # Verify we're logged in (should have .CBProd auth cookie)
+    if ".CBProd" not in client.cookies:
+        raise RuntimeError(
+            "Login failed: .CBProd auth cookie not set. "
+            "Check CRICBATTLE_EMAIL and CRICBATTLE_PASSWORD."
+        )
+
+    logger.info("Cricbattle login successful (landed on: %s)", login_resp.url)
     return client
 
 
@@ -60,25 +96,19 @@ async def _get_match_list(client: httpx.AsyncClient) -> list[dict]:
 
     Returns list of {"match_id": str, "match_label": str}.
     """
-    scores_page_url = (
-        f"{CRICBATTLE_BASE_URL}/MyFantasy/PlayerScoresBreakdown"
-        f"?leagueId={settings.CRICBATTLE_LEAGUE_ID}"
-    )
-    resp = await client.get(scores_page_url)
+    url = CRICBATTLE_SCORES_PAGE_URL.format(league_id=settings.CRICBATTLE_LEAGUE_ID)
+    resp = await client.get(url)
     resp.raise_for_status()
 
     soup = BeautifulSoup(resp.text, "html.parser")
-    match_select = soup.find("select", {"id": "MatchId"}) or soup.find("select", {"name": "MatchId"})
-    if not match_select:
-        # Try alternative selectors
-        match_select = soup.find("select", id=lambda x: x and "match" in x.lower())
+    match_select = soup.find("select", {"id": "MatchId"})
 
     matches = []
     if match_select:
         for option in match_select.find_all("option"):
             val = option.get("value", "").strip()
             label = option.get_text(strip=True)
-            if val and val != "0" and val != "":
+            if val and val not in ("0", ""):
                 matches.append({"match_id": val, "match_label": label})
 
     logger.info("Found %d matches in dropdown", len(matches))
@@ -88,100 +118,50 @@ async def _get_match_list(client: httpx.AsyncClient) -> list[dict]:
 async def _get_match_scores(
     client: httpx.AsyncClient, match_id: str
 ) -> list[dict]:
-    """Fetch player scores for a single match.
+    """Fetch player scores for a single match via the JSON API.
 
     Returns list of {"player_name": str, "points": Decimal, "fours": int, "sixes": int}.
+
+    The API accepts JSON: {"lid": "<league_id>", "matchid": "<match_id>"}
+    and returns {"Result": {"lstPlayer": [...], "lstTeam": [...]}}
+    Each player has TotalScore and lstScore[] entries per inning with Fours/Sixes.
     """
-    payload = {
-        "leagueId": settings.CRICBATTLE_LEAGUE_ID,
-        "matchId": match_id,
-    }
-    resp = await client.post(CRICBATTLE_SCORES_URL, data=payload)
+    resp = await client.post(
+        CRICBATTLE_SCORES_API_URL,
+        content=json.dumps({
+            "lid": settings.CRICBATTLE_LEAGUE_ID,
+            "matchid": match_id,
+        }),
+        headers={"Content-Type": "application/json; charset=utf-8"},
+    )
     resp.raise_for_status()
 
-    soup = BeautifulSoup(resp.text, "html.parser")
+    data = resp.json()
+    result = data.get("Result") or {}
+    raw_players = result.get("lstPlayer") or []
+
     players = []
-
-    # Parse score rows from the HTML table
-    rows = soup.find_all("tr")
-    for row in rows:
-        cells = row.find_all("td")
-        if len(cells) < 2:
+    for p in raw_players:
+        name = p.get("PlayerName", "").strip()
+        if not name:
             continue
 
-        # Try to extract player name from first cell
-        name_cell = cells[0]
-        player_name = name_cell.get_text(strip=True)
-        if not player_name:
-            continue
+        # TotalScore on the player object is already aggregated across innings
+        total_points = Decimal(str(p.get("TotalScore") or 0))
 
-        # Try to extract total points (usually last numeric cell)
-        points = Decimal("0")
-        fours = 0
-        sixes = 0
+        # Sum fours and sixes across all innings
+        fours = sum(inning.get("Fours", 0) or 0 for inning in p.get("lstScore", []))
+        sixes = sum(inning.get("Sixes", 0) or 0 for inning in p.get("lstScore", []))
 
-        for cell in cells:
-            text = cell.get_text(strip=True)
-            # Look for boundary breakdown info
-            title = cell.get("title", "") or cell.get("data-original-title", "")
-            if title:
-                fours_val, sixes_val = _parse_boundary_breakdown(title)
-                if fours_val is not None:
-                    fours = fours_val
-                if sixes_val is not None:
-                    sixes = sixes_val
-
-        # Points is typically the last or second-to-last cell
-        for cell in reversed(cells):
-            text = cell.get_text(strip=True).replace(",", "")
-            try:
-                points = Decimal(text)
-                break
-            except Exception:
-                continue
-
-        if player_name and not player_name.startswith(("Total", "Player", "#")):
-            players.append({
-                "player_name": player_name,
-                "points": points,
-                "fours": fours,
-                "sixes": sixes,
-            })
+        players.append({
+            "player_name": name,
+            "points": total_points,
+            "fours": fours,
+            "sixes": sixes,
+        })
 
     logger.info("Parsed %d player scores for match %s", len(players), match_id)
     return players
-
-
-def _parse_boundary_breakdown(tooltip_text: str) -> tuple[int | None, int | None]:
-    """Parse boundary counts from tooltip/title text.
-
-    Looks for patterns like '4 Runs: 3' and '6 Runs: 1'.
-    """
-    fours = None
-    sixes = None
-    text = tooltip_text.lower()
-
-    # Try common patterns
-    four_match = re.search(r"4\s*runs?\s*[:\-=]\s*(\d+)", text)
-    if four_match:
-        fours = int(four_match.group(1))
-
-    six_match = re.search(r"6\s*runs?\s*[:\-=]\s*(\d+)", text)
-    if six_match:
-        sixes = int(six_match.group(1))
-
-    # Alternative patterns: "Fours: 3" / "Sixes: 1"
-    if fours is None:
-        four_match = re.search(r"fours?\s*[:\-=]\s*(\d+)", text)
-        if four_match:
-            fours = int(four_match.group(1))
-
-    if sixes is None:
-        six_match = re.search(r"sixes?\s*[:\-=]\s*(\d+)", text)
-        if six_match:
-            sixes = int(six_match.group(1))
-
-    return fours, sixes
 
 
 async def _match_player_name(
