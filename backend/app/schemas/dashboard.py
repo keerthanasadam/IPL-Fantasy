@@ -78,6 +78,12 @@ class TeamRoster(BaseModel):
     players: list[PlayerInRoster]
 
 
+class ScoreHistoryEntry(BaseModel):
+    match_id: str
+    match_label: str
+    team_points: dict[str, float]  # team_name -> points earned this match
+
+
 class DashboardResponse(BaseModel):
     league_name: str
     season_label: str
@@ -89,5 +95,6 @@ class DashboardResponse(BaseModel):
     awesome_threesome_pot: list[AwesomeThreesomeEntry]
     predictions: list[PredictionEntry]
     prediction_actuals: PredictionActuals | None = None
+    score_history: list[ScoreHistoryEntry] = []
     top_scorers: list[TopScorerEntry]
     rosters: list[TeamRoster]

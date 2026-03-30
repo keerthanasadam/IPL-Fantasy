@@ -1,4 +1,4 @@
-import { LitElement, html, css, nothing } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import { api } from '../services/api.js';
@@ -11,6 +11,7 @@ interface CaptainEntry { rank: number; team_name: string; owner_name: string | n
 interface AwesomeEntry { rank: number; team_name: string; owner_name: string | null; batter: string | null; bowler: string | null; allrounder: string | null; total_points: number }
 interface Prediction { team_name: string; owner_name: string | null; ipl_winner: string | null; orange_cap: string | null; purple_cap: string | null; ipl_mvp: string | null }
 interface PredictionActuals { ipl_winner: string | null; orange_cap: string[] | null; purple_cap: string[] | null; ipl_mvp: string | null }
+interface ScoreHistoryEntry { match_id: string; match_label: string; team_points: Record<string, number> }
 interface TopScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; fantasy_team: string | null; owner_name: string | null; draft_round: number | null }
 interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
@@ -27,6 +28,7 @@ interface DashboardData {
   awesome_threesome_pot: AwesomeEntry[];
   predictions: Prediction[];
   prediction_actuals: PredictionActuals | null;
+  score_history: ScoreHistoryEntry[];
   top_scorers: TopScorer[];
   rosters: Roster[];
   prize_pool: PrizePool;
@@ -388,6 +390,53 @@ export class PagePublicDashboard extends LitElement {
         padding: 0 2px;
       }
 
+      /* ── Score history chart ── */
+      .chart-card {
+        background: var(--bg-card);
+        border: 1px solid rgba(255,255,255,0.08);
+        border-radius: 12px;
+        padding: 1.25rem;
+        margin-bottom: 1rem;
+      }
+      .chart-title {
+        font-size: 1rem;
+        font-weight: 700;
+        color: var(--text-primary);
+        margin-bottom: 1rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+      }
+      .chart-svg-wrap {
+        width: 100%;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+      }
+      .chart-svg-wrap svg {
+        display: block;
+        min-width: 480px;
+        width: 100%;
+      }
+      .chart-legend {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem 1rem;
+        margin-top: 0.75rem;
+      }
+      .legend-item {
+        display: flex;
+        align-items: center;
+        gap: 0.35rem;
+        font-size: 0.75rem;
+        color: var(--text-muted);
+      }
+      .legend-dot {
+        width: 10px;
+        height: 10px;
+        border-radius: 50%;
+        flex-shrink: 0;
+      }
+
       /* ── Admin ── */
       .admin-section {
         margin-top: 2rem;
@@ -534,6 +583,7 @@ export class PagePublicDashboard extends LitElement {
     return html`
       ${this._renderHero(d)}
       <div class="leaderboard-section">${this._renderLeaderboard(d.standings)}</div>
+      ${this._renderScoreChart(d.score_history, d.standings)}
       ${this._renderSidePots(d)}
       ${this._renderTopScorers(d)}
       ${this._renderRosters(d)}
@@ -562,6 +612,107 @@ export class PagePublicDashboard extends LitElement {
             </div>
           </div>
         ` : nothing}
+      </div>
+    `;
+  }
+
+  /* ── Score history line chart ── */
+  private _renderScoreChart(history: ScoreHistoryEntry[], standings: Standing[]) {
+    if (history.length < 2) return nothing;
+
+    const PAD = { top: 16, right: 16, bottom: 36, left: 64 };
+    const W = 760, H = 280;
+    const chartW = W - PAD.left - PAD.right;
+    const chartH = H - PAD.top - PAD.bottom;
+
+    // Collect all team names (in standings order)
+    const teams = standings.map(s => s.team_name);
+
+    // Compute cumulative points per team per match
+    const cumulative: Record<string, number[]> = {};
+    for (const t of teams) cumulative[t] = [];
+    const running: Record<string, number> = {};
+
+    for (const entry of history) {
+      for (const t of teams) {
+        running[t] = (running[t] ?? 0) + (entry.team_points[t] ?? 0);
+        cumulative[t].push(running[t]);
+      }
+    }
+
+    const maxPts = Math.max(...Object.values(cumulative).flat(), 1);
+    const n = history.length;
+
+    const xPos = (i: number) => PAD.left + (i / (n - 1)) * chartW;
+    const yPos = (v: number) => PAD.top + chartH - (v / maxPts) * chartH;
+
+    // Y-axis grid lines
+    const yTicks = 5;
+    const yStep = Math.ceil(maxPts / yTicks / 500) * 500;
+    const yTickVals: number[] = [];
+    for (let v = 0; v <= maxPts + yStep; v += yStep) yTickVals.push(v);
+
+    // X-axis ticks (show every Nth to avoid crowding)
+    const maxXLabels = 10;
+    const xStep = Math.max(1, Math.ceil(n / maxXLabels));
+
+    return html`
+      <div class="chart-card">
+        <div class="chart-title">📈 Team Points Over Time</div>
+        <div class="chart-svg-wrap">
+          <svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg">
+            <!-- Grid lines -->
+            ${yTickVals.map(v => {
+              const y = yPos(v);
+              if (y < PAD.top || y > PAD.top + chartH) return nothing;
+              return svg`
+                <line x1="${PAD.left}" y1="${y}" x2="${PAD.left + chartW}" y2="${y}"
+                      stroke="rgba(255,255,255,0.06)" stroke-width="1"/>
+                <text x="${PAD.left - 6}" y="${y + 4}" text-anchor="end"
+                      font-size="10" fill="rgba(255,255,255,0.35)">${Math.round(v)}</text>
+              `;
+            })}
+
+            <!-- X axis labels -->
+            ${history.map((entry, i) => {
+              if (i % xStep !== 0 && i !== n - 1) return nothing;
+              const x = xPos(i);
+              const label = `M${i + 1}`;
+              return svg`
+                <text x="${x}" y="${PAD.top + chartH + 18}" text-anchor="middle"
+                      font-size="10" fill="rgba(255,255,255,0.35)">${label}</text>
+              `;
+            })}
+
+            <!-- Axes -->
+            <line x1="${PAD.left}" y1="${PAD.top}" x2="${PAD.left}" y2="${PAD.top + chartH}"
+                  stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+            <line x1="${PAD.left}" y1="${PAD.top + chartH}" x2="${PAD.left + chartW}" y2="${PAD.top + chartH}"
+                  stroke="rgba(255,255,255,0.12)" stroke-width="1"/>
+
+            <!-- Lines per team -->
+            ${teams.map((team, ti) => {
+              const pts = cumulative[team];
+              if (!pts.length) return nothing;
+              const points = pts.map((v, i) => `${xPos(i)},${yPos(v)}`).join(' ');
+              const color = TEAM_COLORS[ti % TEAM_COLORS.length];
+              return svg`
+                <polyline points="${points}" fill="none" stroke="${color}"
+                          stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
+                <circle cx="${xPos(pts.length - 1)}" cy="${yPos(pts[pts.length - 1])}"
+                        r="3" fill="${color}"/>
+              `;
+            })}
+          </svg>
+        </div>
+        <div class="chart-legend">
+          ${teams.map((team, ti) => html`
+            <div class="legend-item">
+              <div class="legend-dot" style="background:${TEAM_COLORS[ti % TEAM_COLORS.length]}"></div>
+              ${team}
+            </div>
+          `)}
+        </div>
       </div>
     `;
   }

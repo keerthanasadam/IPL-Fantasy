@@ -97,6 +97,53 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             player_fours[row.player_id] = int(row.total_fours)
             player_sixes[row.player_id] = int(row.total_sixes)
 
+    # Per-match per-team score history (for line chart)
+    score_history = []
+    if all_player_ids:
+        from collections import defaultdict
+        history_stmt = (
+            select(
+                PlayerMatchScore.match_id,
+                PlayerMatchScore.match_label,
+                PlayerMatchScore.player_id,
+                func.sum(PlayerMatchScore.points).label("match_points"),
+            )
+            .where(
+                PlayerMatchScore.season_id == season_id,
+                PlayerMatchScore.player_id.in_(all_player_ids),
+            )
+            .group_by(
+                PlayerMatchScore.match_id,
+                PlayerMatchScore.match_label,
+                PlayerMatchScore.player_id,
+            )
+        )
+        history_result = await db.execute(history_stmt)
+        match_team_pts: dict = defaultdict(lambda: defaultdict(Decimal))
+        match_labels: dict[str, str] = {}
+        for row in history_result.all():
+            team_id = player_to_team.get(row.player_id)
+            if not team_id:
+                continue
+            team = team_map.get(team_id)
+            if not team:
+                continue
+            match_team_pts[row.match_id][team.name] += Decimal(str(row.match_points))
+            match_labels[row.match_id] = row.match_label
+
+        def _match_sort_key(mid: str):
+            try:
+                return (0, int(mid))
+            except (ValueError, TypeError):
+                return (1, mid)
+
+        for mid in sorted(match_team_pts.keys(), key=_match_sort_key):
+            score_history.append({
+                "match_id": mid,
+                "match_label": match_labels[mid],
+                "team_points": {t: float(p) for t, p in match_team_pts[mid].items()},
+            })
+
     # Count distinct matches played
     matches_stmt = (
         select(func.count(func.distinct(PlayerMatchScore.match_id)))
@@ -313,6 +360,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         "awesome_threesome_pot": awesome_threesome_pot,
         "predictions": predictions,
         "prediction_actuals": (season.draft_config or {}).get("prediction_actuals"),
+        "score_history": score_history,
         "top_scorers": top_scorers,
         "rosters": rosters,
     }
