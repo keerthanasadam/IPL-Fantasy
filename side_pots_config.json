@@ -42,16 +42,16 @@
   ],
 
   "predictions": [
-    { "team_name": "FIGHTER",        "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "FIGHTER",        "ipl_winner": "CSK", "orange_cap": "Gill", "purple_cap": "Arshdeep", "ipl_mvp": "Abhishek Sharma" },
     { "team_name": "Vipers",         "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "SRH a mazaaka",  "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
+    { "team_name": "SRH a mazaaka",  "ipl_winner": "RCB", "orange_cap": "Virat Kohli", "purple_cap": "Bumrah", "ipl_mvp": "Virat Kohli" },
     { "team_name": "Titans",    "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "BEACH BOYS", "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "Boom Boom",      "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "Ee sala cup",    "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "Vishwa",         "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "Venuswamy",      "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "KAUSHIK",        "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" },
-    { "team_name": "Daredevils",     "ipl_winner": "", "orange_cap": "", "purple_cap": "", "ipl_mvp": "" }
+    { "team_name": "BEACH BOYS", "ipl_winner": "MI", "orange_cap": "Samson", "purple_cap": "Bumrah", "ipl_mvp": "Rohit Sharma" },
+    { "team_name": "Boom Boom",      "ipl_winner": "PBKS", "orange_cap": "KL Rahul", "purple_cap": "Bumrah", "ipl_mvp": "Abhishek" },
+    { "team_name": "Ee sala cup",    "ipl_winner": "MI", "orange_cap": "Virat Kohli", "purple_cap": "Bumrah", "ipl_mvp": "Bumrah" },
+    { "team_name": "Vishwa",         "ipl_winner": "SRH", "orange_cap": "Jaiswal", "purple_cap": "Bumrah", "ipl_mvp": "Pandya" },
+    { "team_name": "Venuswamy",      "ipl_winner": "MI", "orange_cap": "Rohit", "purple_cap": "Kuldeep", "ipl_mvp": "Bumrah" },
+    { "team_name": "KAUSHIK",        "ipl_winner": "SRH", "orange_cap": "Abhishek Varma", "purple_cap": "Bumrah", "ipl_mvp": "Abhishek Varma" },
+    { "team_name": "Daredevils",     "ipl_winner": "MI", "orange_cap": "Abhishek Sharma", "purple_cap": "Bumrah", "ipl_mvp": "Bumrah" }
   ]
 }

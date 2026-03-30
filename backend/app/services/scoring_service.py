@@ -312,6 +312,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         "captain_vc_pot": captain_vc_pot,
         "awesome_threesome_pot": awesome_threesome_pot,
         "predictions": predictions,
+        "prediction_actuals": (season.draft_config or {}).get("prediction_actuals"),
         "top_scorers": top_scorers,
         "rosters": rosters,
     }

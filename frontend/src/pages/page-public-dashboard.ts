@@ -10,6 +10,7 @@ interface BoundaryEntry { rank: number; team_name: string; owner_name: string | 
 interface CaptainEntry { rank: number; team_name: string; owner_name: string | null; captain: string | null; vice_captain: string | null; total_points: number }
 interface AwesomeEntry { rank: number; team_name: string; owner_name: string | null; batter: string | null; bowler: string | null; allrounder: string | null; total_points: number }
 interface Prediction { team_name: string; owner_name: string | null; ipl_winner: string | null; orange_cap: string | null; purple_cap: string | null; ipl_mvp: string | null }
+interface PredictionActuals { ipl_winner: string | null; orange_cap: string[] | null; purple_cap: string[] | null; ipl_mvp: string | null }
 interface TopScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; fantasy_team: string | null; owner_name: string | null; draft_round: number | null }
 interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
@@ -25,6 +26,7 @@ interface DashboardData {
   captain_vc_pot: CaptainEntry[];
   awesome_threesome_pot: AwesomeEntry[];
   predictions: Prediction[];
+  prediction_actuals: PredictionActuals | null;
   top_scorers: TopScorer[];
   rosters: Roster[];
   prize_pool: PrizePool;
@@ -261,7 +263,12 @@ export class PagePublicDashboard extends LitElement {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
       }
-      .predictions-grid .dash-table { min-width: 600px; }
+      .predictions-grid .dash-table { min-width: 650px; }
+      .pick-correct {
+        color: #4ade80;
+        font-weight: 700;
+      }
+      .predictions-grid .pts { white-space: nowrap; }
 
       /* ── Roster accordion ── */
       .roster-controls {
@@ -387,7 +394,24 @@ export class PagePublicDashboard extends LitElement {
       /* ── Responsive ── */
       @media (max-width: 768px) {
         .hero-title { font-size: 2rem; }
-        .standings-grid { grid-template-columns: 1fr; }
+        .standings-grid {
+          grid-template-columns: none;
+          display: flex;
+          overflow-x: auto;
+          scroll-snap-type: x mandatory;
+          -webkit-overflow-scrolling: touch;
+          gap: 0.75rem;
+          padding-bottom: 0.5rem;
+        }
+        .standings-grid > .glass-card {
+          flex: 0 0 85%;
+          scroll-snap-align: start;
+          min-width: 0;
+        }
+        .standings-grid::after {
+          content: '';
+          flex: 0 0 1px;
+        }
         .top-scorer-heroes { grid-template-columns: 1fr; }
         .podium { flex-direction: column; }
         .scorer-name { font-size: 1.15rem; }
@@ -654,10 +678,29 @@ export class PagePublicDashboard extends LitElement {
   }
 
   /* ── Predictions ── */
+  private _pickMatches(pick: string | null, actual: string | string[] | null): boolean {
+    if (!pick || !actual) return false;
+    const p = pick.toLowerCase().trim();
+    if (Array.isArray(actual)) return actual.some(a => a.toLowerCase().trim() === p);
+    return actual.toLowerCase().trim() === p;
+  }
+
   private _renderPredictions(d: DashboardData) {
     if (!d.predictions.length) return nothing;
+    const a = d.prediction_actuals;
+    const scored = d.predictions.map(p => {
+      const w = a ? this._pickMatches(p.ipl_winner, a.ipl_winner) : false;
+      const o = a ? this._pickMatches(p.orange_cap, a.orange_cap) : false;
+      const pc = a ? this._pickMatches(p.purple_cap, a.purple_cap) : false;
+      const m = a ? this._pickMatches(p.ipl_mvp, a.ipl_mvp) : false;
+      return { ...p, w, o, pc, m, total: +w + +o + +pc + +m };
+    }).sort((a, b) => b.total - a.total);
+
     return html`
       <div class="section-title"><span class="section-icon">\u{1F3AF}</span> Picku Cheppu Cash Kottu</div>
+      ${a ? html`<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">
+        Current: Winner: <strong>${a.ipl_winner || '?'}</strong> · Orange Cap: <strong>${a.orange_cap?.join(', ') || '?'}</strong> · Purple Cap: <strong>${a.purple_cap?.join(', ') || '?'}</strong>
+      </div>` : nothing}
       <div class="glass-card predictions-grid">
         <table class="dash-table">
           <thead>
@@ -667,19 +710,21 @@ export class PagePublicDashboard extends LitElement {
               <th>Orange Cap</th>
               <th>Purple Cap</th>
               <th>MVP</th>
+              ${a ? html`<th style="text-align:right">Pts</th>` : nothing}
             </tr>
           </thead>
           <tbody>
-            ${d.predictions.map(p => html`
+            ${scored.map(p => html`
               <tr>
                 <td>
                   <div class="team-name">${p.team_name}</div>
                   <div class="owner">${p.owner_name || '-'}</div>
                 </td>
-                <td>${p.ipl_winner || '-'}</td>
-                <td>${p.orange_cap || '-'}</td>
-                <td>${p.purple_cap || '-'}</td>
-                <td>${p.ipl_mvp || '-'}</td>
+                <td class="${p.w ? 'pick-correct' : ''}">${p.ipl_winner || '-'}</td>
+                <td class="${p.o ? 'pick-correct' : ''}">${p.orange_cap || '-'}</td>
+                <td class="${p.pc ? 'pick-correct' : ''}">${p.purple_cap || '-'}</td>
+                <td class="${p.m ? 'pick-correct' : ''}">${p.ipl_mvp || '-'}</td>
+                ${a ? html`<td class="pts">${p.total}</td>` : nothing}
               </tr>
             `)}
           </tbody>
@@ -755,9 +800,10 @@ export class PagePublicDashboard extends LitElement {
       ${filtered.length === 0 ? html`<p class="empty-msg">No players found matching "${this.searchQuery}"</p>` : nothing}
       ${filtered.map((r, ri) => {
         const sorted = this._sortPlayers(r.players);
-        const isOpen = q.length > 0;
+        const isSearching = q.length > 0;
+        const displayPlayers = isSearching ? sorted.filter(p => p.player_name.toLowerCase().includes(q)) : sorted;
         return html`
-          <details class="roster-team" ?open=${isOpen}>
+          <details class="roster-team" ?open=${isSearching}>
             <summary class="roster-summary">
               <span class="roster-summary-rank">${ri + 1}.</span>
               <span class="roster-summary-name">${r.team_name}</span>
@@ -768,8 +814,8 @@ export class PagePublicDashboard extends LitElement {
               <table class="dash-table">
                 <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th style="text-align:right">Pts</th><th style="text-align:right">4s+6s</th></tr></thead>
                 <tbody>
-                  ${sorted.map(p => {
-                    const nameMatch = q && p.player_name.toLowerCase().includes(q);
+                  ${displayPlayers.map(p => {
+                    const nameMatch = isSearching && p.player_name.toLowerCase().includes(q);
                     return html`
                       <tr>
                         <td><span class="round-badge">${p.draft_round}</span></td>

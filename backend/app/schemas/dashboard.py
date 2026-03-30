@@ -45,6 +45,13 @@ class PredictionEntry(BaseModel):
     ipl_mvp: str | None
 
 
+class PredictionActuals(BaseModel):
+    ipl_winner: str | None = None
+    orange_cap: list[str] | None = None
+    purple_cap: list[str] | None = None
+    ipl_mvp: str | None = None
+
+
 class TopScorerEntry(BaseModel):
     player_name: str
     ipl_team: str | None
@@ -81,5 +88,6 @@ class DashboardResponse(BaseModel):
     captain_vc_pot: list[CaptainVcEntry]
     awesome_threesome_pot: list[AwesomeThreesomeEntry]
     predictions: list[PredictionEntry]
+    prediction_actuals: PredictionActuals | None = None
     top_scorers: list[TopScorerEntry]
     rosters: list[TeamRoster]
