@@ -120,11 +120,38 @@ export class PagePublicDashboard extends LitElement {
       }
       .section-icon { font-size: 1.4rem; }
 
-      /* ── Grid layout ── */
-      .standings-grid {
+      /* ── Leaderboard (full width, separate) ── */
+      .leaderboard-section {
+        margin-bottom: 1rem;
+      }
+
+      /* ── Side pots grid ── */
+      .side-pots-section { position: relative; }
+      .side-pots-grid {
         display: grid;
         grid-template-columns: 1fr 1fr;
         gap: 1rem;
+      }
+
+      /* ── Carousel dots (hidden on desktop) ── */
+      .carousel-dots {
+        display: none;
+        justify-content: center;
+        align-items: center;
+        gap: 6px;
+        margin-top: 0.75rem;
+      }
+      .carousel-dot {
+        height: 6px;
+        width: 6px;
+        border-radius: 3px;
+        background: rgba(255,255,255,0.18);
+        transition: width 0.25s ease, background 0.25s ease;
+        cursor: pointer;
+      }
+      .carousel-dot.active {
+        width: 20px;
+        background: var(--accent);
       }
 
       /* ── Glass card ── */
@@ -394,7 +421,7 @@ export class PagePublicDashboard extends LitElement {
       /* ── Responsive ── */
       @media (max-width: 768px) {
         .hero-title { font-size: 2rem; }
-        .standings-grid {
+        .side-pots-grid {
           grid-template-columns: none;
           display: flex;
           overflow-x: auto;
@@ -402,16 +429,19 @@ export class PagePublicDashboard extends LitElement {
           -webkit-overflow-scrolling: touch;
           gap: 0.75rem;
           padding-bottom: 0.5rem;
+          scrollbar-width: none;
         }
-        .standings-grid > .glass-card {
-          flex: 0 0 85%;
+        .side-pots-grid::-webkit-scrollbar { display: none; }
+        .side-pots-grid > .glass-card {
+          flex: 0 0 88%;
           scroll-snap-align: start;
           min-width: 0;
         }
-        .standings-grid::after {
+        .side-pots-grid::after {
           content: '';
           flex: 0 0 1px;
         }
+        .carousel-dots { display: flex; }
         .top-scorer-heroes { grid-template-columns: 1fr; }
         .podium { flex-direction: column; }
         .scorer-name { font-size: 1.15rem; }
@@ -430,6 +460,7 @@ export class PagePublicDashboard extends LitElement {
   @state() private adminUpdating = false;
   @state() private adminMsg = '';
   @state() private adminMsgType: 'success' | 'error' = 'success';
+  @state() private activeCardIndex = 0;
 
   /* Vaadin Router lifecycle */
   onAfterEnter(location: any) {
@@ -502,8 +533,8 @@ export class PagePublicDashboard extends LitElement {
     const d = this.data;
     return html`
       ${this._renderHero(d)}
-      ${this._renderStandingsGrid(d)}
-      ${this._renderPredictions(d)}
+      <div class="leaderboard-section">${this._renderLeaderboard(d.standings)}</div>
+      ${this._renderSidePots(d)}
       ${this._renderTopScorers(d)}
       ${this._renderRosters(d)}
       ${isAdmin() ? this._renderAdmin() : nothing}
@@ -535,14 +566,35 @@ export class PagePublicDashboard extends LitElement {
     `;
   }
 
-  /* ── 4-card standings grid ── */
-  private _renderStandingsGrid(d: DashboardData) {
+  /* ── Side pots carousel (boundary, captain, awesome, predictions) ── */
+  private _onCarouselScroll(e: Event) {
+    const el = e.target as HTMLElement;
+    const index = Math.round(el.scrollLeft / el.clientWidth);
+    if (index !== this.activeCardIndex) this.activeCardIndex = index;
+  }
+
+  private _scrollToCard(index: number) {
+    const carousel = this.shadowRoot?.querySelector('.side-pots-grid') as HTMLElement;
+    if (!carousel) return;
+    carousel.scrollTo({ left: index * carousel.clientWidth, behavior: 'smooth' });
+  }
+
+  private _renderSidePots(d: DashboardData) {
+    const numCards = 4;
     return html`
-      <div class="standings-grid">
-        ${this._renderLeaderboard(d.standings)}
-        ${this._renderBoundaryPot(d.boundary_pot)}
-        ${this._renderCaptainPot(d.captain_vc_pot)}
-        ${this._renderAwesomePot(d.awesome_threesome_pot)}
+      <div class="side-pots-section">
+        <div class="side-pots-grid" @scroll=${this._onCarouselScroll}>
+          ${this._renderBoundaryPot(d.boundary_pot)}
+          ${this._renderCaptainPot(d.captain_vc_pot)}
+          ${this._renderAwesomePot(d.awesome_threesome_pot)}
+          ${this._renderPredictionsCard(d)}
+        </div>
+        <div class="carousel-dots">
+          ${Array.from({ length: numCards }, (_, i) => html`
+            <div class="carousel-dot ${i === this.activeCardIndex ? 'active' : ''}"
+                 @click=${() => this._scrollToCard(i)}></div>
+          `)}
+        </div>
       </div>
     `;
   }
@@ -677,7 +729,7 @@ export class PagePublicDashboard extends LitElement {
     `;
   }
 
-  /* ── Predictions ── */
+  /* ── Predictions card (inside carousel) ── */
   private _pickMatches(pick: string | null, actual: string | string[] | null): boolean {
     if (!pick || !actual) return false;
     const p = pick.toLowerCase().trim();
@@ -685,8 +737,7 @@ export class PagePublicDashboard extends LitElement {
     return actual.toLowerCase().trim() === p;
   }
 
-  private _renderPredictions(d: DashboardData) {
-    if (!d.predictions.length) return nothing;
+  private _renderPredictionsCard(d: DashboardData) {
     const a = d.prediction_actuals;
     const scored = d.predictions.map(p => {
       const w = a ? this._pickMatches(p.ipl_winner, a.ipl_winner) : false;
@@ -697,38 +748,42 @@ export class PagePublicDashboard extends LitElement {
     }).sort((a, b) => b.total - a.total);
 
     return html`
-      <div class="section-title"><span class="section-icon">\u{1F3AF}</span> Picku Cheppu Cash Kottu</div>
-      ${a ? html`<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:0.75rem">
-        Current: Winner: <strong>${a.ipl_winner || '?'}</strong> · Orange Cap: <strong>${a.orange_cap?.join(', ') || '?'}</strong> · Purple Cap: <strong>${a.purple_cap?.join(', ') || '?'}</strong>
-      </div>` : nothing}
-      <div class="glass-card predictions-grid">
-        <table class="dash-table">
-          <thead>
-            <tr>
-              <th>Team</th>
-              <th>IPL Winner</th>
-              <th>Orange Cap</th>
-              <th>Purple Cap</th>
-              <th>MVP</th>
-              ${a ? html`<th style="text-align:right">Pts</th>` : nothing}
-            </tr>
-          </thead>
-          <tbody>
-            ${scored.map(p => html`
-              <tr>
-                <td>
-                  <div class="team-name">${p.team_name}</div>
-                  <div class="owner">${p.owner_name || '-'}</div>
-                </td>
-                <td class="${p.w ? 'pick-correct' : ''}">${p.ipl_winner || '-'}</td>
-                <td class="${p.o ? 'pick-correct' : ''}">${p.orange_cap || '-'}</td>
-                <td class="${p.pc ? 'pick-correct' : ''}">${p.purple_cap || '-'}</td>
-                <td class="${p.m ? 'pick-correct' : ''}">${p.ipl_mvp || '-'}</td>
-                ${a ? html`<td class="pts">${p.total}</td>` : nothing}
-              </tr>
-            `)}
-          </tbody>
-        </table>
+      <div class="glass-card">
+        <div class="card-header">\u{1F3AF} Picku Cheppu Cash Kottu</div>
+        ${a ? html`<div class="card-subtitle">
+          Winner: ${a.ipl_winner || '?'} · Orange: ${a.orange_cap?.join('/') || '?'} · Purple: ${a.purple_cap?.join('/') || '?'}
+        </div>` : nothing}
+        ${!scored.length ? html`<p class="empty-msg">No predictions yet</p>` : html`
+          <div class="predictions-grid">
+            <table class="dash-table">
+              <thead>
+                <tr>
+                  <th>Team</th>
+                  <th>Winner</th>
+                  <th>Orange</th>
+                  <th>Purple</th>
+                  <th>MVP</th>
+                  ${a ? html`<th style="text-align:right">Pts</th>` : nothing}
+                </tr>
+              </thead>
+              <tbody>
+                ${scored.map(p => html`
+                  <tr>
+                    <td>
+                      <div class="team-name">${p.team_name}</div>
+                      <div class="owner">${p.owner_name || '-'}</div>
+                    </td>
+                    <td class="${p.w ? 'pick-correct' : ''}">${p.ipl_winner || '-'}</td>
+                    <td class="${p.o ? 'pick-correct' : ''}">${p.orange_cap || '-'}</td>
+                    <td class="${p.pc ? 'pick-correct' : ''}">${p.purple_cap || '-'}</td>
+                    <td class="${p.m ? 'pick-correct' : ''}">${p.ipl_mvp || '-'}</td>
+                    ${a ? html`<td class="pts">${p.total}</td>` : nothing}
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        `}
       </div>
     `;
   }
