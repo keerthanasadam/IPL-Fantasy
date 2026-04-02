@@ -3,6 +3,7 @@ import { customElement, state } from 'lit/decorators.js';
 import { sharedStyles } from '../styles/shared-styles.js';
 import { api } from '../services/api.js';
 import { isAdmin } from '../services/auth.js';
+import '../components/csv-uploader.js';
 
 /* ── Types ── */
 interface Standing { rank: number; team_name: string; owner_name: string | null; total_points: number }
@@ -13,6 +14,7 @@ interface Prediction { team_name: string; owner_name: string | null; ipl_winner:
 interface PredictionActuals { ipl_winner: string | null; orange_cap: string[] | null; purple_cap: string[] | null; ipl_mvp: string | null }
 interface ScoreHistoryEntry { match_id: string; match_label: string; team_points: Record<string, number> }
 interface TopScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; fantasy_team: string | null; owner_name: string | null; draft_round: number | null }
+interface UndraftedScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number }
 interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
 interface PrizePool { first: number; second: number; third: number; side_pot_each: number }
@@ -30,6 +32,7 @@ interface DashboardData {
   prediction_actuals: PredictionActuals | null;
   score_history: ScoreHistoryEntry[];
   top_scorers: TopScorer[];
+  top_undrafted: UndraftedScorer[];
   rosters: Roster[];
   prize_pool: PrizePool;
 }
@@ -943,7 +946,7 @@ export class PagePublicDashboard extends LitElement {
   private _renderTopScorers(d: DashboardData) {
     if (!d.top_scorers.length) return nothing;
     const top2 = d.top_scorers.slice(0, 2);
-    const rest = d.top_scorers.slice(2, 10);
+    const rest = d.top_scorers.slice(2, 5);
     return html`
       <div class="section-title"><span class="section-icon">\u2B50</span> Top Scorers</div>
       <div class="top-scorer-heroes">
@@ -964,13 +967,14 @@ export class PagePublicDashboard extends LitElement {
       ${rest.length ? html`
         <div class="glass-card">
           <table class="dash-table">
-            <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Fantasy Team</th><th style="text-align:right">Pts</th></tr></thead>
+            <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Round</th><th>Fantasy Team</th><th style="text-align:right">Pts</th></tr></thead>
             <tbody>
               ${rest.map((s, i) => html`
                 <tr>
                   <td class="rank">${i + 3}</td>
                   <td class="team-name">${s.player_name}</td>
                   <td style="font-size:0.78rem">${s.ipl_team || '-'}</td>
+                  <td style="font-size:0.78rem">Rd ${s.draft_round ?? '-'}</td>
                   <td style="font-size:0.78rem">${s.fantasy_team || '-'}</td>
                   <td class="pts">${s.total_points.toLocaleString()}</td>
                 </tr>
@@ -979,6 +983,31 @@ export class PagePublicDashboard extends LitElement {
           </table>
         </div>
       ` : nothing}
+      ${this._renderTopUndrafted(d)}
+    `;
+  }
+
+  /* ── Top Undrafted Players ── */
+  private _renderTopUndrafted(d: DashboardData) {
+    if (!d.top_undrafted?.length) return nothing;
+    return html`
+      <div class="section-title" style="margin-top:1.5rem"><span class="section-icon">\u{1F614}</span> Top Undrafted Players</div>
+      <div class="glass-card">
+        <table class="dash-table">
+          <thead><tr><th>#</th><th>Player</th><th>Team</th><th>Role</th><th style="text-align:right">Pts</th></tr></thead>
+          <tbody>
+            ${d.top_undrafted.map((s, i) => html`
+              <tr>
+                <td class="rank">${i + 1}</td>
+                <td class="team-name">${s.player_name}</td>
+                <td style="font-size:0.78rem">${s.ipl_team || '-'}</td>
+                <td style="font-size:0.78rem">${s.designation || '-'}</td>
+                <td class="pts">${s.total_points.toLocaleString()}</td>
+              </tr>
+            `)}
+          </tbody>
+        </table>
+      </div>
     `;
   }
 
@@ -1051,6 +1080,59 @@ export class PagePublicDashboard extends LitElement {
   }
 
   /* ── Admin ── */
+  private async _handlePredictionsCsv(e: CustomEvent) {
+    const file = e.detail.file as File;
+    const text = await file.text();
+    const lines = text.trim().split('\n');
+    if (lines.length < 2) {
+      this.adminMsg = 'CSV must have a header row and at least one data row';
+      this.adminMsgType = 'error';
+      return;
+    }
+    const header = lines[0].toLowerCase().split(',').map(h => h.trim());
+    const teamIdx = header.findIndex(h => h === 'team' || h === 'team_name');
+    const winnerIdx = header.findIndex(h => h.includes('winner'));
+    const orangeIdx = header.findIndex(h => h.includes('orange'));
+    const purpleIdx = header.findIndex(h => h.includes('purple'));
+    const mvpIdx = header.findIndex(h => h.includes('mvp'));
+
+    if (teamIdx === -1) {
+      this.adminMsg = 'CSV must have a "Team" column';
+      this.adminMsgType = 'error';
+      return;
+    }
+
+    const predictions = lines.slice(1).filter(l => l.trim()).map(line => {
+      const cols = line.split(',').map(c => c.trim());
+      return {
+        team_name: cols[teamIdx] || '',
+        ipl_winner: winnerIdx >= 0 ? cols[winnerIdx] || null : null,
+        orange_cap: orangeIdx >= 0 ? cols[orangeIdx] || null : null,
+        purple_cap: purpleIdx >= 0 ? cols[purpleIdx] || null : null,
+        ipl_mvp: mvpIdx >= 0 ? cols[mvpIdx] || null : null,
+      };
+    });
+
+    this.adminUpdating = true;
+    this.adminMsg = '';
+    try {
+      const result = await api.uploadSidePots(this.seasonId, {
+        teams: [],
+        captain_vc_picks: [],
+        awesome_threesome: [],
+        predictions,
+      });
+      this.adminMsg = `Predictions uploaded: ${result.upserted} saved${result.errors?.length ? `, errors: ${result.errors.join(', ')}` : ''}`;
+      this.adminMsgType = result.errors?.length ? 'error' : 'success';
+      await this._loadDashboard();
+    } catch (e: any) {
+      this.adminMsg = e.message || 'Upload failed';
+      this.adminMsgType = 'error';
+    } finally {
+      this.adminUpdating = false;
+    }
+  }
+
   private _renderAdmin() {
     return html`
       <div class="admin-section">
@@ -1059,6 +1141,11 @@ export class PagePublicDashboard extends LitElement {
           <button class="btn btn-primary" ?disabled=${this.adminUpdating} @click=${this._updateScores}>
             ${this.adminUpdating ? html`<span class="spinner" style="width:16px;height:16px;border-width:2px;margin-right:0.4rem"></span> Updating...` : 'Update Points'}
           </button>
+        </div>
+        <div style="margin-top:1rem">
+          <h4 style="margin-bottom:0.5rem;font-size:0.9rem;color:var(--text-muted)">Upload Predictions CSV</h4>
+          <div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:0.5rem">Columns: Team, IPL Winner, Orange Cap, Purple Cap, MVP</div>
+          <csv-uploader @file-selected=${this._handlePredictionsCsv}></csv-uploader>
         </div>
         ${this.adminMsg ? html`<div class="admin-msg ${this.adminMsgType}">${this.adminMsg}</div>` : nothing}
       </div>

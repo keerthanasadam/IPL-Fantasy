@@ -62,6 +62,13 @@ class TopScorerEntry(BaseModel):
     draft_round: int | None
 
 
+class UndraftedScorerEntry(BaseModel):
+    player_name: str
+    ipl_team: str | None
+    designation: str | None
+    total_points: float
+
+
 class PlayerInRoster(BaseModel):
     player_name: str
     ipl_team: str | None
@@ -97,4 +104,5 @@ class DashboardResponse(BaseModel):
     prediction_actuals: PredictionActuals | None = None
     score_history: list[ScoreHistoryEntry] = []
     top_scorers: list[TopScorerEntry]
+    top_undrafted: list[UndraftedScorerEntry] = []
     rosters: list[TeamRoster]

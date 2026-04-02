@@ -302,9 +302,9 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             "ipl_mvp": config_data.get("ipl_mvp"),
         })
 
-    # --- 6. Top scorers: top 10 players by total points ---
+    # --- 6. Top scorers: top 5 drafted players by total points ---
     top_scorers = []
-    for pid, pts in sorted(player_points.items(), key=lambda x: x[1], reverse=True)[:10]:
+    for pid, pts in sorted(player_points.items(), key=lambda x: x[1], reverse=True)[:5]:
         p = players_map.get(pid)
         team_id = player_to_team.get(pid)
         team = team_map.get(team_id) if team_id else None
@@ -319,6 +319,43 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         })
     for i, entry in enumerate(top_scorers, 1):
         entry["rank"] = i
+
+    # --- 6b. Top 3 undrafted players by total points ---
+    drafted_player_ids = set(player_to_team.keys())
+    undrafted_scores_stmt = (
+        select(
+            PlayerMatchScore.player_id,
+            func.coalesce(func.sum(PlayerMatchScore.points), 0).label("total_points"),
+        )
+        .where(
+            PlayerMatchScore.season_id == season_id,
+            PlayerMatchScore.player_id.notin_(drafted_player_ids) if drafted_player_ids else True,
+        )
+        .group_by(PlayerMatchScore.player_id)
+        .order_by(func.sum(PlayerMatchScore.points).desc())
+        .limit(3)
+    )
+    undrafted_result = await db.execute(undrafted_scores_stmt)
+    undrafted_rows = undrafted_result.all()
+
+    # Load player info for undrafted players
+    undrafted_ids = [row.player_id for row in undrafted_rows]
+    undrafted_players_map: dict[uuid.UUID, Player] = {}
+    if undrafted_ids:
+        undrafted_players_stmt = select(Player).where(Player.id.in_(undrafted_ids))
+        undrafted_players_result = await db.execute(undrafted_players_stmt)
+        for p in undrafted_players_result.scalars().all():
+            undrafted_players_map[p.id] = p
+
+    top_undrafted = []
+    for row in undrafted_rows:
+        p = undrafted_players_map.get(row.player_id)
+        top_undrafted.append({
+            "player_name": p.name if p else "Unknown",
+            "ipl_team": p.ipl_team if p else None,
+            "designation": p.designation if p else None,
+            "total_points": float(row.total_points),
+        })
 
     # --- 7. Team rosters ---
     rosters = []
@@ -362,5 +399,6 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         "prediction_actuals": (season.draft_config or {}).get("prediction_actuals"),
         "score_history": score_history,
         "top_scorers": top_scorers,
+        "top_undrafted": top_undrafted,
         "rosters": rosters,
     }

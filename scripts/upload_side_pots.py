@@ -41,6 +41,7 @@ def upload(base_url: str, season_id: str, token: str):
     ]
 
     payload = {
+        "teams": config.get("teams", []),
         "captain_vc_picks": [
             p for p in config.get("captain_vc_picks", [])
             if p.get("captain") or p.get("vice_captain")
