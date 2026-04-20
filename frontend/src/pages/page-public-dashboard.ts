@@ -40,8 +40,8 @@ interface DashboardData {
 type SortOption = 'points-desc' | 'round-asc' | 'round-desc';
 
 const TEAM_COLORS = [
-  '#f5a623', '#3b82f6', '#22c55e', '#ef4444', '#a855f7',
-  '#ec4899', '#14b8a6', '#f97316', '#6366f1', '#eab308',
+  '#818cf8', '#34d399', '#f472b6', '#fb923c', '#a78bfa',
+  '#38bdf8', '#4ade80', '#e879f9', '#fbbf24', '#f87171',
 ];
 
 const MEDAL = ['', '\u{1F947}', '\u{1F948}', '\u{1F949}'];
@@ -64,7 +64,7 @@ export class PagePublicDashboard extends LitElement {
       .hero-title {
         font-size: 2.8rem;
         font-weight: 800;
-        background: linear-gradient(135deg, var(--accent) 0%, #f97316 50%, #ef4444 100%);
+        background: linear-gradient(135deg, #818cf8 0%, #a855f7 50%, #ec4899 100%);
         -webkit-background-clip: text;
         -webkit-text-fill-color: transparent;
         background-clip: text;
@@ -199,9 +199,9 @@ export class PagePublicDashboard extends LitElement {
         background: rgba(255,255,255,0.04);
         border: 1px solid rgba(255,255,255,0.06);
       }
-      .podium-card.gold { border-color: rgba(245,166,35,0.3); background: rgba(245,166,35,0.08); }
-      .podium-card.silver { border-color: rgba(192,192,192,0.3); background: rgba(192,192,192,0.06); }
-      .podium-card.bronze { border-color: rgba(205,127,50,0.3); background: rgba(205,127,50,0.06); }
+      .podium-card.gold { border-color: rgba(129,140,248,0.4); background: rgba(129,140,248,0.12); }
+      .podium-card.silver { border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.07); }
+      .podium-card.bronze { border-color: rgba(244,114,182,0.3); background: rgba(244,114,182,0.07); }
       .podium-medal { font-size: 1.5rem; }
       .podium-team { font-size: 0.85rem; font-weight: 700; margin: 0.25rem 0; color: var(--text-primary); }
       .podium-owner { font-size: 0.72rem; color: var(--text-muted); }
@@ -272,7 +272,7 @@ export class PagePublicDashboard extends LitElement {
         transform: translate(30%, -30%);
       }
       .scorer-hero:first-child::before { background: var(--accent); }
-      .scorer-hero:last-child::before { background: #3b82f6; }
+      .scorer-hero:last-child::before { background: #34d399; }
       .scorer-rank-badge {
         display: inline-block;
         font-size: 0.7rem;
@@ -283,8 +283,8 @@ export class PagePublicDashboard extends LitElement {
         border-radius: 999px;
         margin-bottom: 0.75rem;
       }
-      .scorer-rank-badge.first { background: rgba(245,166,35,0.15); color: var(--accent); }
-      .scorer-rank-badge.second { background: rgba(59,130,246,0.15); color: #60a5fa; }
+      .scorer-rank-badge.first { background: rgba(129,140,248,0.15); color: var(--accent); }
+      .scorer-rank-badge.second { background: rgba(52,211,153,0.15); color: #34d399; }
       .scorer-name { font-size: 1.4rem; font-weight: 800; color: var(--text-primary); }
       .scorer-meta { font-size: 0.82rem; color: var(--text-muted); margin: 0.35rem 0; }
       .scorer-points { font-size: 2rem; font-weight: 800; color: var(--accent); }
@@ -327,7 +327,7 @@ export class PagePublicDashboard extends LitElement {
         background: var(--bg-card);
       }
       details.roster-team[open] {
-        border-color: rgba(245,166,35,0.2);
+        border-color: rgba(129,140,248,0.25);
       }
       summary.roster-summary {
         padding: 0.75rem 1rem;
@@ -388,7 +388,7 @@ export class PagePublicDashboard extends LitElement {
       .des-WK { background: rgba(34,197,94,0.15); color: #4ade80; }
 
       .search-highlight {
-        background: rgba(245,166,35,0.25);
+        background: rgba(129,140,248,0.3);
         border-radius: 2px;
         padding: 0 2px;
       }
