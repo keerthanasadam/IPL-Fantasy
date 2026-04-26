@@ -195,18 +195,27 @@ export class PagePublicDashboard extends LitElement {
       .podium-card {
         flex: 1;
         text-align: center;
-        padding: 0.75rem 0.5rem;
-        border-radius: 10px;
+        padding: 1rem 0.75rem;
+        border-radius: 12px;
         background: rgba(255,255,255,0.04);
         border: 1px solid rgba(255,255,255,0.06);
+        transition: transform 0.2s, box-shadow 0.2s;
       }
-      .podium-card.gold { border-color: rgba(129,140,248,0.4); background: rgba(129,140,248,0.12); }
-      .podium-card.silver { border-color: rgba(52,211,153,0.3); background: rgba(52,211,153,0.07); }
-      .podium-card.bronze { border-color: rgba(244,114,182,0.3); background: rgba(244,114,182,0.07); }
-      .podium-medal { font-size: 1.5rem; }
+      .podium-card.gold {
+        border-color: rgba(251,191,36,0.5);
+        background: rgba(251,191,36,0.07);
+        box-shadow: 0 0 30px rgba(251,191,36,0.13);
+        transform: translateY(-8px);
+      }
+      .podium-card.silver { border-color: rgba(6,182,212,0.35); background: rgba(6,182,212,0.06); }
+      .podium-card.bronze { border-color: rgba(244,63,94,0.35); background: rgba(244,63,94,0.06); }
+      .podium-medal { font-size: 1.6rem; }
       .podium-team { font-size: 0.85rem; font-weight: 700; margin: 0.25rem 0; color: var(--text-primary); }
       .podium-owner { font-size: 0.72rem; color: var(--text-muted); }
-      .podium-points { font-size: 1.3rem; font-weight: 800; color: var(--accent); margin-top: 0.25rem; }
+      .podium-points { font-size: 1.4rem; font-weight: 800; margin-top: 0.3rem; }
+      .podium-points.gold  { color: #fbbf24; }
+      .podium-points.silver{ color: #06b6d4; }
+      .podium-points.bronze{ color: #f87171; }
 
       /* ── Tables ── */
       .dash-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; }
@@ -763,11 +772,11 @@ export class PagePublicDashboard extends LitElement {
         <div class="card-header ${isMidseason ? 'ms-section-title' : ''}">\u{1F3C6} Owner Leaderboard</div>
         <div class="podium">
           ${top3.map((s, i) => html`
-            <div class="podium-card ${podiumClass[i]} ${isMidseason ? `ms-podium-card ${podiumClass[i]}` : ''}">
+            <div class="podium-card ${podiumClass[i]}">
               <div class="podium-medal">${MEDAL[i + 1]}</div>
               <div class="podium-team">${s.team_name}</div>
               <div class="podium-owner">${s.owner_name || '-'}</div>
-              <div class="podium-points ${isMidseason ? msPtsCls[i] : ''}">
+              <div class="podium-points ${podiumClass[i]}">
                 ${isMidseason ? (s.effective_points ?? 0).toLocaleString() : s.total_points.toLocaleString()}
               </div>
               ${isMidseason ? html`
