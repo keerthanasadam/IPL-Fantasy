@@ -96,8 +96,8 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         for p in players_result.scalars().all():
             players_map[p.id] = p
 
-    # Detect midseason league: any drafted player has points_at_draft set
-    is_midseason = any(p.points_at_draft is not None for p in players_map.values())
+    # Detect midseason league: season has midseason_draft_date set in draft_config
+    is_midseason = bool(midseason_draft_date_str)
 
     # Aggregate match scores per player
     player_points: dict[uuid.UUID, Decimal] = {}
