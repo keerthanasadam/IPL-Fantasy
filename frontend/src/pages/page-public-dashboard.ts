@@ -190,8 +190,13 @@ export class PagePublicDashboard extends LitElement {
         font-weight: 400;
       }
 
-      /* ── Podium cards (top 3) ── */
-      .podium { display: flex; gap: 0.75rem; margin-bottom: 1rem; }
+      /* ── Podium cards (top 3) — silver | GOLD | bronze ── */
+      .podium {
+        display: flex;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+        align-items: flex-end;
+      }
       .podium-card {
         flex: 1;
         text-align: center;
@@ -199,13 +204,13 @@ export class PagePublicDashboard extends LitElement {
         border-radius: 12px;
         background: rgba(255,255,255,0.04);
         border: 1px solid rgba(255,255,255,0.06);
-        transition: transform 0.2s, box-shadow 0.2s;
       }
       .podium-card.gold {
-        border-color: rgba(251,191,36,0.5);
-        background: rgba(251,191,36,0.07);
-        box-shadow: 0 0 30px rgba(251,191,36,0.13);
-        transform: translateY(-8px);
+        border-color: rgba(251,191,36,0.55);
+        background: rgba(251,191,36,0.08);
+        box-shadow: 0 0 36px rgba(251,191,36,0.18);
+        padding-top: 1.5rem;
+        padding-bottom: 1.5rem;
       }
       .podium-card.silver { border-color: rgba(6,182,212,0.35); background: rgba(6,182,212,0.06); }
       .podium-card.bronze { border-color: rgba(244,63,94,0.35); background: rgba(244,63,94,0.06); }
@@ -771,7 +776,7 @@ export class PagePublicDashboard extends LitElement {
       <div class="glass-card">
         <div class="card-header ${isMidseason ? 'ms-section-title' : ''}">\u{1F3C6} Owner Leaderboard</div>
         <div class="podium">
-          ${top3.map((s, i) => html`
+          ${[1, 0, 2].map(i => { const s = top3[i]; if (!s) return nothing; return html`
             <div class="podium-card ${podiumClass[i]}">
               <div class="podium-medal">${MEDAL[i + 1]}</div>
               <div class="podium-team">${s.team_name}</div>
@@ -784,7 +789,7 @@ export class PagePublicDashboard extends LitElement {
                   Half: ${(s.points_at_half ?? 0).toFixed(0)} &nbsp;·&nbsp; Total: ${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}
                 </div>` : nothing}
             </div>
-          `)}
+          `; })}
         </div>
         ${rest.length ? html`
           <table class="dash-table">
