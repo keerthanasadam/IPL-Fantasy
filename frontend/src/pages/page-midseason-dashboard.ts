@@ -25,8 +25,8 @@ interface DashData {
 
 /* ── Constants ────────────────────────────────────────────────────────── */
 const TEAM_COLORS = [
-  '#818cf8', '#34d399', '#f472b6', '#fb923c',
-  '#a78bfa', '#38bdf8', '#4ade80', '#fbbf24',
+  '#f97316', '#06b6d4', '#a3e635', '#e879f9',
+  '#fbbf24', '#34d399', '#f43f5e', '#38bdf8',
 ];
 const PODIUM_META = [
   { label: '2nd', cls: 'silver', medal: '🥈', order: 1 },
@@ -39,58 +39,75 @@ const PODIUM_META = [
 export class PageMidseasonDashboard extends LitElement {
 
   static styles = [sharedStyles, css`
-    :host { display: block; }
+    :host {
+      display: block;
+      --ms-accent: #f97316;
+      --ms-accent-2: #06b6d4;
+      --ms-accent-3: #a3e635;
+      --ms-gold: #fbbf24;
+      --ms-silver: #06b6d4;
+      --ms-bronze: #f43f5e;
+    }
 
     /* Hero */
     .hero {
       text-align: center;
-      padding: 3rem 1rem 2.5rem;
+      padding: 3.5rem 1rem 2.5rem;
       position: relative;
+      overflow: hidden;
     }
     .hero::before {
       content: '';
       position: absolute;
       inset: 0;
-      background: radial-gradient(ellipse 70% 50% at 50% 0%, rgba(129,140,248,0.12) 0%, transparent 70%);
+      background:
+        radial-gradient(ellipse 60% 55% at 20% 50%, rgba(249,115,22,0.18) 0%, transparent 60%),
+        radial-gradient(ellipse 60% 55% at 80% 50%, rgba(6,182,212,0.15) 0%, transparent 60%),
+        radial-gradient(ellipse 50% 40% at 50% 0%, rgba(251,191,36,0.1) 0%, transparent 70%);
       pointer-events: none;
     }
     .hero-eyebrow {
-      font-size: 0.75rem;
-      font-weight: 700;
-      letter-spacing: 0.12em;
+      font-size: 0.72rem;
+      font-weight: 800;
+      letter-spacing: 0.14em;
       text-transform: uppercase;
-      color: var(--accent);
+      color: var(--ms-accent);
       margin-bottom: 0.5rem;
+      position: relative;
     }
     .hero-title {
       font-size: clamp(2rem, 5vw, 3.2rem);
       font-weight: 900;
-      background: linear-gradient(135deg, #818cf8 0%, #a855f7 45%, #ec4899 100%);
+      background: linear-gradient(135deg, #f97316 0%, #fbbf24 40%, #f43f5e 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
       line-height: 1.1;
       margin-bottom: 0.4rem;
+      position: relative;
     }
     .hero-sub {
       font-size: 1rem;
       color: var(--text-muted);
       margin-bottom: 1.25rem;
+      position: relative;
     }
     .hero-pills {
       display: flex; gap: 0.6rem; justify-content: center; flex-wrap: wrap;
+      position: relative;
     }
     .pill {
-      background: var(--bg-secondary);
-      border: 1px solid var(--border-color);
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.1);
       border-radius: 999px;
       padding: 0.3rem 0.9rem;
       font-size: 0.78rem;
       font-weight: 600;
       color: var(--text-primary);
       display: flex; align-items: center; gap: 0.35rem;
+      backdrop-filter: blur(8px);
     }
-    .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); }
+    .pill-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--ms-accent); }
 
     /* Layout */
     .container { max-width: 900px; margin: 0 auto; padding: 0 1rem 3rem; }
@@ -98,10 +115,10 @@ export class PageMidseasonDashboard extends LitElement {
     /* Section title */
     .section-title {
       font-size: 0.7rem;
-      font-weight: 700;
-      letter-spacing: 0.1em;
+      font-weight: 800;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
-      color: var(--text-subtle);
+      color: var(--ms-accent);
       margin: 2.5rem 0 1rem;
       display: flex; align-items: center; gap: 0.6rem;
     }
@@ -109,7 +126,7 @@ export class PageMidseasonDashboard extends LitElement {
       content: '';
       flex: 1;
       height: 1px;
-      background: var(--border-color);
+      background: linear-gradient(90deg, rgba(249,115,22,0.4), transparent);
     }
 
     /* Podium */
@@ -122,7 +139,7 @@ export class PageMidseasonDashboard extends LitElement {
     .podium-card {
       flex: 1;
       max-width: 240px;
-      border-radius: 16px;
+      border-radius: 20px;
       padding: 1.5rem 1rem 1.25rem;
       text-align: center;
       border: 1px solid rgba(255,255,255,0.06);
@@ -134,26 +151,36 @@ export class PageMidseasonDashboard extends LitElement {
     .podium-card::before {
       content: '';
       position: absolute;
-      inset: 0;
-      opacity: 0.06;
-      border-radius: 16px;
+      top: -40px; left: 50%;
+      transform: translateX(-50%);
+      width: 140px; height: 140px;
+      border-radius: 50%;
+      opacity: 0.12;
+      filter: blur(30px);
     }
     .podium-card.gold {
-      border-color: rgba(129,140,248,0.45);
-      background: rgba(129,140,248,0.08);
-      transform: translateY(-12px);
+      border-color: rgba(251,191,36,0.5);
+      background: rgba(251,191,36,0.07);
+      transform: translateY(-14px);
+      box-shadow: 0 0 40px rgba(251,191,36,0.12);
     }
-    .podium-card.gold::before { background: #818cf8; opacity: 0.12; }
-    .podium-card.silver { border-color: rgba(148,163,184,0.3); }
-    .podium-card.silver::before { background: #94a3b8; }
-    .podium-card.bronze { border-color: rgba(251,146,60,0.3); }
-    .podium-card.bronze::before { background: #fb923c; }
+    .podium-card.gold::before { background: #fbbf24; opacity: 0.2; }
+    .podium-card.silver {
+      border-color: rgba(6,182,212,0.35);
+      background: rgba(6,182,212,0.06);
+    }
+    .podium-card.silver::before { background: #06b6d4; opacity: 0.15; }
+    .podium-card.bronze {
+      border-color: rgba(244,63,94,0.35);
+      background: rgba(244,63,94,0.06);
+    }
+    .podium-card.bronze::before { background: #f43f5e; opacity: 0.15; }
 
-    .podium-medal { font-size: 2rem; margin-bottom: 0.5rem; display: block; }
+    .podium-medal { font-size: 2.2rem; margin-bottom: 0.5rem; display: block; }
     .podium-pos {
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       font-weight: 800;
-      letter-spacing: 0.1em;
+      letter-spacing: 0.12em;
       text-transform: uppercase;
       color: var(--text-subtle);
       margin-bottom: 0.5rem;
@@ -171,175 +198,120 @@ export class PageMidseasonDashboard extends LitElement {
       margin-bottom: 1rem;
     }
     .podium-effective {
-      font-size: 1.8rem;
+      font-size: 1.9rem;
       font-weight: 900;
-      color: var(--accent);
       line-height: 1;
     }
+    .gold .podium-effective  { color: var(--ms-gold); }
+    .silver .podium-effective { color: var(--ms-silver); }
+    .bronze .podium-effective { color: var(--ms-bronze); }
     .podium-effective-label {
-      font-size: 0.65rem;
+      font-size: 0.62rem;
       text-transform: uppercase;
-      letter-spacing: 0.08em;
+      letter-spacing: 0.1em;
       color: var(--text-subtle);
-      margin-top: 0.2rem;
+      margin-top: 0.25rem;
     }
     .podium-half {
-      font-size: 0.78rem;
+      font-size: 0.75rem;
       color: var(--text-muted);
-      margin-top: 0.6rem;
+      margin-top: 0.65rem;
       display: flex;
       justify-content: center;
       gap: 0.4rem;
       flex-wrap: wrap;
     }
-    .podium-half span { opacity: 0.6; }
+    .podium-half span { opacity: 0.55; }
 
-    /* Standings table */
+    /* Standings */
     .standings-card {
       background: var(--bg-card);
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid rgba(249,115,22,0.15);
       border-radius: 16px;
       overflow: hidden;
     }
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      font-size: 0.84rem;
-    }
-    thead tr {
-      border-bottom: 1px solid var(--border-color);
-    }
+    table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+    thead tr { border-bottom: 1px solid rgba(249,115,22,0.15); }
     th {
-      padding: 0.7rem 1rem;
+      padding: 0.75rem 1rem;
       text-align: left;
-      font-size: 0.68rem;
-      font-weight: 700;
-      letter-spacing: 0.08em;
+      font-size: 0.67rem;
+      font-weight: 800;
+      letter-spacing: 0.09em;
       text-transform: uppercase;
-      color: var(--text-subtle);
+      color: var(--ms-accent);
     }
     th.right { text-align: right; }
-    td {
-      padding: 0.8rem 1rem;
-      border-bottom: 1px solid rgba(255,255,255,0.04);
-    }
+    td { padding: 0.85rem 1rem; border-bottom: 1px solid rgba(255,255,255,0.04); }
     td.right { text-align: right; }
     tr:last-child td { border-bottom: none; }
-    tr:nth-child(even) td { background: rgba(255,255,255,0.02); }
+    tr:nth-child(even) td { background: rgba(249,115,22,0.03); }
 
-    .rank-cell {
-      font-size: 0.8rem;
-      font-weight: 700;
-      color: var(--text-subtle);
-      width: 2.5rem;
-    }
+    .rank-cell { font-size: 0.8rem; font-weight: 700; color: var(--text-subtle); width: 2.5rem; }
     .rank-badge {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      width: 1.6rem;
-      height: 1.6rem;
-      border-radius: 50%;
-      font-size: 0.72rem;
-      font-weight: 800;
+      display: inline-flex; align-items: center; justify-content: center;
+      width: 1.7rem; height: 1.7rem;
+      border-radius: 50%; font-size: 0.72rem; font-weight: 800;
     }
-    .rank-1 { background: rgba(129,140,248,0.2); color: #818cf8; }
-    .rank-2 { background: rgba(148,163,184,0.15); color: #94a3b8; }
-    .rank-3 { background: rgba(251,146,60,0.15); color: #fb923c; }
+    .rank-1 { background: rgba(251,191,36,0.2); color: #fbbf24; }
+    .rank-2 { background: rgba(6,182,212,0.2);  color: #06b6d4; }
+    .rank-3 { background: rgba(244,63,94,0.2);  color: #f43f5e; }
 
-    .team-cell .team-name { font-weight: 700; color: var(--text-primary); }
+    .team-cell .team-name { font-weight: 700; }
     .team-cell .owner { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.1rem; }
 
     .pts-half { color: var(--text-muted); font-size: 0.82rem; }
-    .pts-effective { font-weight: 800; color: var(--accent); font-size: 0.95rem; }
+    .pts-effective { font-weight: 800; color: var(--ms-accent); font-size: 0.95rem; }
     .pts-total { font-size: 0.82rem; color: var(--text-subtle); }
 
-    .bar-wrap { margin-top: 0.3rem; }
+    .bar-wrap { margin-top: 0.35rem; }
     .bar-track {
-      height: 3px;
-      border-radius: 2px;
-      background: rgba(255,255,255,0.06);
-      overflow: hidden;
+      height: 3px; border-radius: 2px;
+      background: rgba(255,255,255,0.06); overflow: hidden;
     }
     .bar-fill {
-      height: 100%;
-      border-radius: 2px;
-      background: var(--accent);
+      height: 100%; border-radius: 2px;
       transition: width 0.8s cubic-bezier(.4,0,.2,1);
     }
 
     /* Chart */
     .chart-card {
       background: var(--bg-card);
-      border: 1px solid rgba(255,255,255,0.07);
+      border: 1px solid rgba(6,182,212,0.15);
       border-radius: 16px;
       padding: 1.5rem;
     }
     .chart-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 1.25rem;
-      flex-wrap: wrap;
-      gap: 0.5rem;
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 1.25rem; flex-wrap: wrap; gap: 0.5rem;
     }
-    .chart-title {
-      font-size: 0.95rem;
-      font-weight: 700;
-      color: var(--text-primary);
-    }
-    .chart-legend {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.5rem 1rem;
-      font-size: 0.72rem;
-    }
-    .legend-item {
-      display: flex;
-      align-items: center;
-      gap: 0.3rem;
-      color: var(--text-muted);
-    }
-    .legend-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      flex-shrink: 0;
-    }
-    .chart-svg-wrap {
-      width: 100%;
-      overflow-x: auto;
-    }
+    .chart-title { font-size: 0.95rem; font-weight: 700; color: var(--ms-accent-2); }
+    .chart-legend { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; font-size: 0.72rem; }
+    .legend-item { display: flex; align-items: center; gap: 0.35rem; color: var(--text-muted); }
+    .legend-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+    .chart-svg-wrap { width: 100%; overflow-x: auto; }
     svg.chart { display: block; min-width: 320px; }
 
     .chart-empty {
-      text-align: center;
-      padding: 3rem 1rem;
-      color: var(--text-muted);
-      font-size: 0.9rem;
+      text-align: center; padding: 3rem 1rem;
+      color: var(--text-muted); font-size: 0.9rem;
     }
     .chart-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
 
-    /* Loading / Error */
+    /* Loader */
     .loader {
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      min-height: 60vh;
-      gap: 1rem;
-      color: var(--text-muted);
+      display: flex; flex-direction: column; align-items: center;
+      justify-content: center; min-height: 60vh; gap: 1rem; color: var(--text-muted);
     }
     .spinner {
       width: 36px; height: 36px;
       border: 3px solid var(--border-color);
-      border-top-color: var(--accent);
+      border-top-color: var(--ms-accent);
       border-radius: 50%;
       animation: spin 0.8s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
 
-    /* Responsive */
     @media (max-width: 600px) {
       .podium-card { padding: 1rem 0.6rem; }
       .podium-effective { font-size: 1.4rem; }
@@ -477,7 +449,11 @@ export class PageMidseasonDashboard extends LitElement {
     d.standings.forEach((s, i) => { colorMap[s.team_name] = TEAM_COLORS[i % TEAM_COLORS.length]; });
 
     const lastUpdated = d.last_updated
-      ? new Date(d.last_updated).toLocaleString('en-IN', { dateStyle: 'medium', timeStyle: 'short' })
+      ? new Date(d.last_updated).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }) + ' EST'
       : 'Not yet';
 
     return html`

@@ -13,73 +13,88 @@ logger = logging.getLogger(__name__)
 scheduler = AsyncIOScheduler()
 
 
+def _resolve_season_ids() -> list[uuid.UUID]:
+    """Return the list of season UUIDs to scrape, from config."""
+    raw = settings.SCRAPE_SEASON_IDS.strip() or settings.SCRAPE_SEASON_ID.strip()
+    if not raw:
+        return []
+    ids = []
+    for part in raw.split(","):
+        part = part.strip()
+        if not part:
+            continue
+        try:
+            ids.append(uuid.UUID(part))
+        except ValueError:
+            logger.error("Invalid season ID in SCRAPE_SEASON_IDS: %r", part)
+    return ids
+
+
 async def _scheduled_scrape():
-    """Called by APScheduler — creates its own DB session and runs the scraper."""
-    season_id_str = settings.SCRAPE_SEASON_ID
-    if not season_id_str:
-        logger.warning("SCRAPE_SEASON_ID not set, skipping scheduled scrape")
+    """Called by APScheduler — scrapes all configured seasons."""
+    season_ids = _resolve_season_ids()
+    if not season_ids:
+        logger.warning("No valid season IDs configured (SCRAPE_SEASON_IDS), skipping")
         return
 
-    try:
-        season_id = uuid.UUID(season_id_str)
-    except ValueError:
-        logger.error("Invalid SCRAPE_SEASON_ID: %s", season_id_str)
-        return
-
-    # Import here to avoid circular imports — we need the app's sessionmaker
     from app.services.cricbattle_scraper import scrape_all_matches
-
-    # Create a fresh session using the engine from settings
     from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
     engine = create_async_engine(settings.DATABASE_URL, echo=False)
     async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
-    async with async_session() as db:
-        logger.info("Starting scheduled score scrape for season %s", season_id)
-        result = await scrape_all_matches(db, season_id)
-        logger.info(
-            "Scheduled scrape complete: %d matches, %d players updated, %d errors",
-            result["matches_scraped"],
-            result["players_updated"],
-            len(result["errors"]),
-        )
-        if result["errors"]:
-            for err in result["errors"]:
-                logger.warning("Scrape error: %s", err)
-        if result["unmatched_players"]:
-            logger.warning("Unmatched players: %s", result["unmatched_players"])
+    for season_id in season_ids:
+        async with async_session() as db:
+            logger.info("Scheduled scrape starting for season %s", season_id)
+            result = await scrape_all_matches(db, season_id)
+            logger.info(
+                "Season %s: %d matches, %d players updated, %d errors",
+                season_id,
+                result["matches_scraped"],
+                result["players_updated"],
+                len(result["errors"]),
+            )
+            for err in result.get("errors", []):
+                logger.warning("  Scrape error: %s", err)
+            if result.get("unmatched_players"):
+                logger.warning("  Unmatched players: %s", result["unmatched_players"])
 
     await engine.dispose()
 
 
 def start_scheduler():
-    """Start the APScheduler with configured scrape times."""
+    """Start APScheduler with cron jobs at SCRAPE_HOURS_IST:SCRAPE_MINUTE_IST (IST)."""
     hours_str = settings.SCRAPE_HOURS_IST.strip()
-    if not hours_str or not settings.SCRAPE_SEASON_ID:
+    season_ids = _resolve_season_ids()
+
+    if not hours_str or not season_ids:
         logger.info(
-            "Auto-scraper disabled (SCRAPE_HOURS_IST=%r, SCRAPE_SEASON_ID=%r)",
+            "Auto-scraper disabled (SCRAPE_HOURS_IST=%r, seasons=%r)",
             hours_str,
-            settings.SCRAPE_SEASON_ID,
+            [str(s) for s in season_ids],
         )
         return
 
+    minute = settings.SCRAPE_MINUTE_IST
     hours = [h.strip() for h in hours_str.split(",") if h.strip()]
 
     for hour in hours:
-        trigger = CronTrigger(hour=int(hour), minute=0, timezone="Asia/Kolkata")
-        job_id = f"scrape_{hour}h"
+        trigger = CronTrigger(hour=int(hour), minute=minute, timezone="America/New_York")
+        job_id = f"scrape_{hour}h{minute:02d}m"
         scheduler.add_job(
             _scheduled_scrape,
             trigger=trigger,
             id=job_id,
             replace_existing=True,
-            name=f"Cricbattle scrape at {hour}:00 IST",
+            name=f"Cricbattle scrape at {hour}:{minute:02d} EST ({len(season_ids)} season(s))",
         )
-        logger.info("Scheduled auto-scrape job '%s' at %s:00 IST", job_id, hour)
+        logger.info(
+            "Scheduled scrape job '%s' at %s:%02d EST for %d season(s)",
+            job_id, hour, minute, len(season_ids),
+        )
 
     scheduler.start()
-    logger.info("APScheduler started with %d jobs", len(scheduler.get_jobs()))
+    logger.info("APScheduler started with %d job(s)", len(scheduler.get_jobs()))
 
 
 def stop_scheduler():

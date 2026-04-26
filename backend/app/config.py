@@ -17,10 +17,14 @@ class Settings(BaseSettings):
     CRICBATTLE_PASSWORD: str = ""
     CRICBATTLE_LEAGUE_ID: str = "676423"
 
-    # Auto-scrape schedule: comma-separated hours in 24h format (IST)
-    # e.g. "1,13" means 1:00 AM and 1:00 PM IST daily
-    SCRAPE_HOURS_IST: str = "1,13"
-    # Season ID to auto-scrape (set this after league is created)
+    # Auto-scrape schedule: comma-separated hours in 24h IST format
+    # e.g. "12" means 12:xx IST daily
+    SCRAPE_HOURS_IST: str = "13"
+    # Minute within each hour to fire (EST). Default 15 → 1:15 PM EST
+    SCRAPE_MINUTE_IST: int = 15
+    # Comma-separated season IDs to scrape (both leagues). Replaces legacy SCRAPE_SEASON_ID.
+    SCRAPE_SEASON_IDS: str = ""
+    # Legacy single season ID (kept for backward compat; ignored if SCRAPE_SEASON_IDS is set)
     SCRAPE_SEASON_ID: str = ""
 
     model_config = {"env_file": ".env", "extra": "ignore"}

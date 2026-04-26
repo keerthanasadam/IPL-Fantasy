@@ -594,14 +594,20 @@ export class PagePublicDashboard extends LitElement {
 
   /* ── Hero ── */
   private _renderHero(d: DashboardData) {
-    const updated = d.last_updated ? new Date(d.last_updated).toLocaleString() : 'Never';
+    const updated = d.last_updated
+      ? new Date(d.last_updated).toLocaleString('en-US', {
+          timeZone: 'America/New_York',
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }) + ' EST'
+      : 'Not yet';
     return html`
       <div class="hero">
         <div class="hero-title">${d.league_name}</div>
         <div class="hero-subtitle">${d.season_label}</div>
         <div class="hero-meta">
-          <span>Last updated: ${updated}</span>
           <span class="matches-badge">${d.matches_played} matches played</span>
+          <span class="matches-badge" title="Scores auto-update daily at 1:15 PM EST">🕐 ${updated}</span>
         </div>
         ${d.prize_pool ? html`
           <div style="margin-top:1.25rem;text-align:center;">
