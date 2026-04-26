@@ -75,9 +75,11 @@ async def get_midseason_dashboard(db: AsyncSession, season_id: uuid.UUID) -> dic
     picks = (await db.execute(picks_stmt)).scalars().all()
 
     player_to_team: dict[uuid.UUID, uuid.UUID] = {}
+    player_to_round: dict[uuid.UUID, int] = {}
     team_player_ids: dict[uuid.UUID, list[uuid.UUID]] = {t.id: [] for t in teams}
     for pick in picks:
         player_to_team[pick.player_id] = pick.team_id
+        player_to_round[pick.player_id] = pick.round
         team_player_ids[pick.team_id].append(pick.player_id)
 
     all_player_ids = list(player_to_team.keys())
@@ -209,6 +211,37 @@ async def get_midseason_dashboard(db: AsyncSession, season_id: uuid.UUID) -> dic
     for i, s in enumerate(standings, 1):
         s["rank"] = i
 
+    # ── Rosters ───────────────────────────────────────────────────────────
+    # Per-player effective points (post-draft match points minus baseline)
+    rosters = []
+    for standing in standings:
+        team = next((t for t in teams if t.name == standing["team_name"]), None)
+        if not team:
+            continue
+        player_ids = team_player_ids.get(team.id, [])
+        roster_players = []
+        for pid in player_ids:
+            p = players_map.get(pid)
+            if not p:
+                continue
+            match_total = player_match_total.get(pid, Decimal("0"))
+            baseline = p.points_at_draft or p.points or Decimal("0")
+            eff = float(max(Decimal("0"), match_total - Decimal(str(baseline))))
+            roster_players.append({
+                "player_name": p.name,
+                "ipl_team": p.ipl_team,
+                "designation": p.designation,
+                "draft_round": player_to_round.get(pid),
+                "effective_points": eff,
+            })
+        roster_players.sort(key=lambda x: x["effective_points"], reverse=True)
+        rosters.append({
+            "team_name": standing["team_name"],
+            "owner_name": standing["owner_name"],
+            "effective_points": standing["effective_points"],
+            "players": roster_players,
+        })
+
     # ── Metadata ──────────────────────────────────────────────────────────
     matches_played = len({e["match_id"] for e in score_history})
 
@@ -226,4 +259,5 @@ async def get_midseason_dashboard(db: AsyncSession, season_id: uuid.UUID) -> dic
         "matches_played": matches_played,
         "standings": standings,
         "score_history": score_history,
+        "rosters": rosters,
     }

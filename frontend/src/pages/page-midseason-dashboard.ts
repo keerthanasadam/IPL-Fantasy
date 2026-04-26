@@ -1,4 +1,4 @@
-import { LitElement, html, css, svg } from 'lit';
+import { LitElement, html, css, nothing, svg } from 'lit';
 import { customElement, state } from 'lit/decorators.js';
 import { Router } from '@vaadin/router';
 import { sharedStyles } from '../styles/shared-styles.js';
@@ -14,6 +14,8 @@ interface Standing {
   total_points: number;
 }
 interface ScoreEntry { match_id: string; match_label: string; team_points: Record<string, number> }
+interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; draft_round: number | null; effective_points: number }
+interface Roster { team_name: string; owner_name: string | null; effective_points: number; players: RosterPlayer[] }
 interface DashData {
   league_name: string;
   season_label: string;
@@ -21,6 +23,7 @@ interface DashData {
   matches_played: number;
   standings: Standing[];
   score_history: ScoreEntry[];
+  rosters: Roster[];
 }
 
 /* ── Constants ────────────────────────────────────────────────────────── */
@@ -298,6 +301,71 @@ export class PageMidseasonDashboard extends LitElement {
     }
     .chart-empty-icon { font-size: 2.5rem; margin-bottom: 0.5rem; }
 
+    /* Roster accordion */
+    .roster-controls {
+      display: flex; gap: 0.75rem; margin-bottom: 1rem; flex-wrap: wrap; align-items: center;
+    }
+    .roster-search {
+      flex: 1; min-width: 200px; max-width: 420px;
+      background: var(--bg-card);
+      border: 1px solid rgba(249,115,22,0.2);
+      border-radius: 8px;
+      padding: 0.45rem 0.75rem;
+      color: var(--text-primary);
+      font-size: 0.85rem;
+      outline: none;
+    }
+    .roster-search:focus { border-color: rgba(249,115,22,0.5); }
+    details.roster-team {
+      margin-bottom: 0.5rem;
+      border-radius: 12px;
+      overflow: hidden;
+      border: 1px solid rgba(255,255,255,0.06);
+      background: var(--bg-card);
+    }
+    details.roster-team[open] { border-color: rgba(249,115,22,0.25); }
+    summary.roster-summary {
+      padding: 0.8rem 1rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-weight: 600;
+      list-style: none;
+      transition: background 0.15s;
+      user-select: none;
+    }
+    summary.roster-summary::-webkit-details-marker { display: none; }
+    summary.roster-summary::before {
+      content: '▶';
+      font-size: 0.6rem;
+      color: var(--ms-accent);
+      transition: transform 0.2s;
+    }
+    details.roster-team[open] > summary.roster-summary::before { transform: rotate(90deg); }
+    summary.roster-summary:hover { background: rgba(249,115,22,0.04); }
+    .rs-rank { font-size: 0.75rem; color: var(--text-subtle); min-width: 1.5rem; }
+    .rs-name { flex: 1; }
+    .rs-owner { color: var(--text-muted); font-size: 0.8rem; font-weight: 400; }
+    .rs-pts { font-weight: 700; color: var(--ms-accent); }
+    .roster-players { padding: 0 1rem 0.75rem; }
+    .roster-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+    .roster-table th {
+      text-align: left; padding: 0.4rem 0.5rem;
+      color: var(--text-subtle); font-size: 0.67rem;
+      text-transform: uppercase; letter-spacing: 0.05em;
+      border-bottom: 1px solid rgba(249,115,22,0.1);
+    }
+    .roster-table td { padding: 0.4rem 0.5rem; border-bottom: 1px solid rgba(255,255,255,0.03); }
+    .roster-table tr:last-child td { border-bottom: none; }
+    .round-badge {
+      display: inline-block; width: 1.5rem; text-align: center;
+      font-size: 0.68rem; font-weight: 700;
+      padding: 0.1rem 0; border-radius: 4px;
+      background: rgba(249,115,22,0.12); color: var(--ms-accent);
+    }
+    .eff-pts { font-weight: 700; color: var(--ms-accent); text-align: right; }
+
     /* Loader */
     .loader {
       display: flex; flex-direction: column; align-items: center;
@@ -323,6 +391,7 @@ export class PageMidseasonDashboard extends LitElement {
   @state() private _data: DashData | null = null;
   @state() private _loading = true;
   @state() private _error = '';
+  @state() private _search = '';
   private _seasonId = '';
 
   onBeforeEnter(loc: Router.Location) {
@@ -433,6 +502,52 @@ export class PageMidseasonDashboard extends LitElement {
           </svg>
         `}
       </div>`;
+  }
+
+  /* ── Rosters ───────────────────────────────────────────────────────── */
+  private _renderRosters(rosters: Roster[]) {
+    if (!rosters.length) return nothing;
+    const q = this._search.trim().toLowerCase();
+    const filtered = q
+      ? rosters.filter(r => r.players.some(p => p.player_name.toLowerCase().includes(q)))
+      : rosters;
+    return html`
+      <div class="section-title">Owners and Players</div>
+      <div class="roster-controls">
+        <input class="roster-search" type="text" placeholder="Search player to find owner…"
+               .value=${this._search}
+               @input=${(e: Event) => { this._search = (e.target as HTMLInputElement).value; }} />
+      </div>
+      ${filtered.length === 0 ? html`<p style="color:var(--text-muted);font-size:0.9rem">No players matching "${this._search}"</p>` : nothing}
+      ${filtered.map((r, ri) => {
+        const displayPlayers = q
+          ? r.players.filter(p => p.player_name.toLowerCase().includes(q))
+          : r.players;
+        return html`
+          <details class="roster-team" ?open=${q.length > 0}>
+            <summary class="roster-summary">
+              <span class="rs-rank">${ri + 1}.</span>
+              <span class="rs-name">${r.team_name}</span>
+              <span class="rs-owner">${r.owner_name ?? ''}</span>
+              <span class="rs-pts">${r.effective_points.toFixed(1)} pts</span>
+            </summary>
+            <div class="roster-players">
+              <table class="roster-table">
+                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th style="text-align:right">Eff Pts</th></tr></thead>
+                <tbody>
+                  ${displayPlayers.map(p => html`
+                    <tr>
+                      <td><span class="round-badge">${p.draft_round ?? '?'}</span></td>
+                      <td>${p.player_name}</td>
+                      <td style="color:var(--text-muted)">${p.ipl_team ?? '-'}</td>
+                      <td class="eff-pts">${p.effective_points.toFixed(1)}</td>
+                    </tr>`)}
+                </tbody>
+              </table>
+            </div>
+          </details>`;
+      })}
+    `;
   }
 
   /* ── Render ─────────────────────────────────────────────────────────── */
@@ -552,6 +667,9 @@ export class PageMidseasonDashboard extends LitElement {
           </div>
           ${this._renderChart(d.score_history, d.standings)}
         </div>
+
+        <!-- Rosters -->
+        ${this._renderRosters(d.rosters ?? [])}
       </div>
     `;
   }
