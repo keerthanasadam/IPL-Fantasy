@@ -6,7 +6,7 @@ import { isAdmin } from '../services/auth.js';
 import '../components/csv-uploader.js';
 
 /* ── Types ── */
-interface Standing { rank: number; team_name: string; owner_name: string | null; total_points: number }
+interface Standing { rank: number; team_name: string; owner_name: string | null; total_points: number; points_at_half?: number | null; effective_points?: number | null }
 interface BoundaryEntry { rank: number; team_name: string; owner_name: string | null; total_fours: number; total_sixes: number; boundary_points: number }
 interface CaptainEntry { rank: number; team_name: string; owner_name: string | null; captain: string | null; vice_captain: string | null; total_points: number }
 interface AwesomeEntry { rank: number; team_name: string; owner_name: string | null; batter: string | null; bowler: string | null; allrounder: string | null; total_points: number }
@@ -35,6 +35,7 @@ interface DashboardData {
   top_undrafted: UndraftedScorer[];
   rosters: Roster[];
   prize_pool: PrizePool;
+  is_midseason: boolean;
 }
 
 type SortOption = 'points-desc' | 'round-asc' | 'round-desc';
@@ -440,6 +441,28 @@ export class PagePublicDashboard extends LitElement {
         flex-shrink: 0;
       }
 
+      /* ── Midseason theme ── */
+      .ms-hero-eyebrow {
+        font-size: 0.72rem; font-weight: 800; letter-spacing: 0.14em;
+        text-transform: uppercase; color: #f97316; margin-bottom: 0.4rem;
+      }
+      .ms-hero-title {
+        background: linear-gradient(135deg, #f97316 0%, #fbbf24 40%, #f43f5e 100%);
+        -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+      }
+      .ms-podium-card.gold  { border-color: rgba(251,191,36,0.5)!important; background: rgba(251,191,36,0.07)!important; box-shadow: 0 0 30px rgba(251,191,36,0.12)!important; transform: translateY(-6px); }
+      .ms-podium-card.silver{ border-color: rgba(6,182,212,0.35)!important; background: rgba(6,182,212,0.06)!important; }
+      .ms-podium-card.bronze{ border-color: rgba(244,63,94,0.35)!important; background: rgba(244,63,94,0.06)!important; }
+      .ms-gold-pts   { color: #fbbf24!important; }
+      .ms-silver-pts { color: #06b6d4!important; }
+      .ms-bronze-pts { color: #f43f5e!important; }
+      .ms-podium-sub { font-size: 0.72rem; color: var(--text-muted); margin-top: 0.4rem; }
+      .ms-effective  { font-weight: 800; color: #f97316; }
+      .ms-section-title { color: #f97316; }
+      .ms-rank-badge-1 { background: rgba(251,191,36,0.2)!important; color: #fbbf24!important; }
+      .ms-rank-badge-2 { background: rgba(6,182,212,0.2)!important;  color: #06b6d4!important; }
+      .ms-rank-badge-3 { background: rgba(244,63,94,0.2)!important;  color: #f43f5e!important; }
+
       /* ── Admin ── */
       .admin-section {
         margin-top: 2rem;
@@ -584,9 +607,9 @@ export class PagePublicDashboard extends LitElement {
     const d = this.data;
     return html`
       ${this._renderHero(d)}
-      <div class="leaderboard-section">${this._renderLeaderboard(d.standings)}</div>
+      <div class="leaderboard-section">${this._renderLeaderboard(d.standings, d.is_midseason)}</div>
       ${this._renderScoreChart(d.score_history, d.standings)}
-      ${this._renderTopScorers(d)}
+      ${d.is_midseason ? nothing : this._renderTopScorers(d)}
       ${this._renderRosters(d)}
       ${isAdmin() ? this._renderAdmin() : nothing}
     `;
@@ -603,8 +626,9 @@ export class PagePublicDashboard extends LitElement {
       : 'Not yet';
     return html`
       <div class="hero">
-        <div class="hero-title">${d.league_name}</div>
-        <div class="hero-subtitle">${d.season_label}</div>
+        ${d.is_midseason ? html`<div class="ms-hero-eyebrow">${d.league_name}</div>` : nothing}
+        <div class="hero-title ${d.is_midseason ? 'ms-hero-title' : ''}">${d.is_midseason ? d.season_label : d.league_name}</div>
+        <div class="hero-subtitle">${d.is_midseason ? 'Mid-Season Draft · Second Half' : d.season_label}</div>
         <div class="hero-meta">
           <span class="matches-badge">${d.matches_played} matches played</span>
           <span class="matches-badge" title="Scores auto-update daily at 1:15 PM EST">🕐 ${updated}</span>
@@ -724,36 +748,63 @@ export class PagePublicDashboard extends LitElement {
   }
 
   /* ── Leaderboard ── */
-  private _renderLeaderboard(standings: Standing[]) {
+  private _renderLeaderboard(standings: Standing[], isMidseason = false) {
     if (!standings.length) {
       return html`<div class="glass-card"><div class="card-header">\u{1F3C6} Owner Leaderboard</div><p class="empty-msg">No scores yet</p></div>`;
     }
     const top3 = standings.slice(0, 3);
     const rest = standings.slice(3);
     const podiumClass = ['gold', 'silver', 'bronze'];
+    const msRankCls = ['ms-rank-badge-1', 'ms-rank-badge-2', 'ms-rank-badge-3'];
+    const msPtsCls  = ['ms-gold-pts', 'ms-silver-pts', 'ms-bronze-pts'];
+    const maxEff = isMidseason ? Math.max(...standings.map(s => s.effective_points ?? 0), 1) : 1;
     return html`
       <div class="glass-card">
-        <div class="card-header">\u{1F3C6} Owner Leaderboard</div>
+        <div class="card-header ${isMidseason ? 'ms-section-title' : ''}">\u{1F3C6} Owner Leaderboard</div>
         <div class="podium">
           ${top3.map((s, i) => html`
-            <div class="podium-card ${podiumClass[i]}">
+            <div class="podium-card ${podiumClass[i]} ${isMidseason ? `ms-podium-card ${podiumClass[i]}` : ''}">
               <div class="podium-medal">${MEDAL[i + 1]}</div>
               <div class="podium-team">${s.team_name}</div>
               <div class="podium-owner">${s.owner_name || '-'}</div>
-              <div class="podium-points">${s.total_points.toLocaleString()}</div>
+              <div class="podium-points ${isMidseason ? msPtsCls[i] : ''}">
+                ${isMidseason ? (s.effective_points ?? 0).toLocaleString() : s.total_points.toLocaleString()}
+              </div>
+              ${isMidseason ? html`
+                <div class="ms-podium-sub">
+                  Half: ${(s.points_at_half ?? 0).toFixed(0)} &nbsp;·&nbsp; Total: ${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}
+                </div>` : nothing}
             </div>
           `)}
         </div>
         ${rest.length ? html`
           <table class="dash-table">
-            <thead><tr><th>#</th><th>Team</th><th>Owner</th><th style="text-align:right">Pts</th></tr></thead>
+            <thead>
+              <tr>
+                <th>#</th><th>Team</th><th>Owner</th>
+                ${isMidseason ? html`<th style="text-align:right">At Half</th><th style="text-align:right">Effective ↓</th><th style="text-align:right">Total</th>` : html`<th style="text-align:right">Pts</th>`}
+              </tr>
+            </thead>
             <tbody>
               ${rest.map(s => html`
                 <tr>
-                  <td class="rank">${s.rank}</td>
+                  <td class="rank">
+                    ${isMidseason && s.rank <= 3
+                      ? html`<span class="rank-badge ${msRankCls[s.rank - 1]}" style="display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;border-radius:50%;font-size:0.72rem;font-weight:800">${s.rank}</span>`
+                      : s.rank}
+                  </td>
                   <td class="team-name">${s.team_name}</td>
                   <td class="owner">${s.owner_name || '-'}</td>
-                  <td class="pts">${s.total_points.toLocaleString()}</td>
+                  ${isMidseason ? html`
+                    <td style="text-align:right;color:var(--text-muted);font-size:0.82rem">${(s.points_at_half ?? 0).toFixed(1)}</td>
+                    <td style="text-align:right">
+                      <div class="ms-effective">${(s.effective_points ?? 0).toFixed(1)}</div>
+                      <div style="height:3px;border-radius:2px;background:rgba(255,255,255,0.06);margin-top:3px;overflow:hidden">
+                        <div style="height:100%;border-radius:2px;background:#f97316;width:${maxEff > 0 ? (((s.effective_points ?? 0) / maxEff) * 100).toFixed(1) : 0}%"></div>
+                      </div>
+                    </td>
+                    <td style="text-align:right;font-size:0.82rem;color:var(--text-subtle)">${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}</td>
+                  ` : html`<td class="pts">${s.total_points.toLocaleString()}</td>`}
                 </tr>
               `)}
             </tbody>

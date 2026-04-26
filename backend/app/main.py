@@ -15,7 +15,6 @@ from app.routers import players as players_router
 from app.routers import draft as draft_router
 from app.routers import public as public_router
 from app.routers import scores as scores_router
-from app.routers import midseason_dashboard as midseason_dashboard_router
 from app.ws import snake_ws
 
 
@@ -52,7 +51,6 @@ app.include_router(players_router.router)
 app.include_router(draft_router.router)
 app.include_router(public_router.router)
 app.include_router(scores_router.router)
-app.include_router(midseason_dashboard_router.router)
 app.include_router(snake_ws.router)
 
 

@@ -509,7 +509,7 @@ export class PageLeague extends LitElement {
           <h1>${this.league.name}</h1>
           <div style="display:flex;align-items:center;gap:0.75rem;">
             ${this.season ? html`
-              <a href="${this.season.draft_config?.midseason_draft_date ? `/midseason/${this.season.id}` : `/dashboard/${this.season.id}`}" class="btn btn-sm btn-primary" style="text-decoration:none;">
+              <a href="/dashboard/${this.season.id}" class="btn btn-sm btn-primary" style="text-decoration:none;">
                 📊 Dashboard
               </a>
               <span class="badge ${this.season.status === 'drafting' ? 'badge-gold' : this.season.status === 'active' || this.season.status === 'completed' ? 'badge-green' : 'badge-gray'}"

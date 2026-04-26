@@ -6,6 +6,8 @@ class StandingEntry(BaseModel):
     team_name: str
     owner_name: str | None
     total_points: float
+    points_at_half: float | None = None
+    effective_points: float | None = None
 
 
 class BoundaryEntry(BaseModel):

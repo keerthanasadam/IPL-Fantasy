@@ -214,10 +214,22 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             player_effective_points.get(pid, Decimal("0"))
             for pid in team_player_ids.get(team.id, [])
         )
+        points_at_half = None
+        if is_midseason:
+            baseline = sum(
+                (Decimal(str(players_map[pid].points_at_draft))
+                 if players_map[pid].points_at_draft is not None
+                 else players_map[pid].points or Decimal("0"))
+                for pid in team_player_ids.get(team.id, [])
+                if pid in players_map
+            )
+            points_at_half = float(baseline)
         standings.append({
             "team_name": team.name,
             "owner_name": team.owner.display_name if team.owner else None,
             "total_points": float(total),
+            "points_at_half": points_at_half,
+            "effective_points": float(total) if is_midseason else None,
         })
     standings.sort(key=lambda x: x["total_points"], reverse=True)
     for i, entry in enumerate(standings, 1):
