@@ -868,7 +868,7 @@ export class PagePublicDashboard extends LitElement {
             </summary>
             <div class="roster-players">
               <table class="dash-table">
-                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th style="text-align:right">Pts</th><th style="text-align:right">4s+6s</th></tr></thead>
+                <thead><tr><th>Rd</th><th>Player</th><th>IPL Team</th><th style="text-align:right">Pts</th></tr></thead>
                 <tbody>
                   ${displayPlayers.map(p => {
                     const nameMatch = isSearching && p.player_name.toLowerCase().includes(q);
@@ -878,7 +878,6 @@ export class PagePublicDashboard extends LitElement {
                         <td class="team-name">${nameMatch ? this._highlightName(p.player_name, q) : p.player_name}</td>
                         <td style="font-size:0.78rem">${p.ipl_team || '-'}</td>
                         <td class="pts">${p.total_points.toLocaleString()}</td>
-                        <td style="text-align:right;font-size:0.78rem;color:var(--text-muted)">${p.total_boundaries}</td>
                       </tr>
                     `;
                   })}

@@ -1,6 +1,9 @@
 """Scoring service: computes all dashboard leaderboards from DB data."""
 
+import re
 import uuid
+from collections import defaultdict
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy import func, select
@@ -15,6 +18,23 @@ from app.models.side_pot_config import SidePotConfig
 from app.models.snake_pick import SnakePick
 from app.models.team import Team
 from app.models.user import User
+
+_MONTH_MAP = {
+    'jan': 1, 'feb': 2, 'mar': 3, 'apr': 4, 'may': 5, 'jun': 6,
+    'jul': 7, 'aug': 8, 'sep': 9, 'oct': 10, 'nov': 11, 'dec': 12,
+}
+
+
+def _parse_match_date(label: str) -> date | None:
+    """Parse '25 Apr IST-...' → date(2026, 4, 25). Returns None if unparseable."""
+    m = re.match(r'(\d+)\s+([A-Za-z]{3})', label)
+    if not m:
+        return None
+    day, mon = int(m.group(1)), m.group(2).lower()
+    month = _MONTH_MAP.get(mon)
+    if not month:
+        return None
+    return date(2026, month, day)
 
 
 async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
@@ -32,6 +52,10 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         raise ValueError("Season not found")
 
     league: League = season.league
+
+    draft_config = season.draft_config or {}
+    midseason_draft_date_str = draft_config.get("midseason_draft_date")
+    draft_cutoff: date | None = date.fromisoformat(midseason_draft_date_str) if midseason_draft_date_str else None
 
     # Load all teams with owners
     teams_stmt = (
@@ -72,6 +96,9 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         for p in players_result.scalars().all():
             players_map[p.id] = p
 
+    # Detect midseason league: any drafted player has points_at_draft set
+    is_midseason = any(p.points_at_draft is not None for p in players_map.values())
+
     # Aggregate match scores per player
     player_points: dict[uuid.UUID, Decimal] = {}
     player_fours: dict[uuid.UUID, int] = {}
@@ -97,10 +124,20 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             player_fours[row.player_id] = int(row.total_fours)
             player_sixes[row.player_id] = int(row.total_sixes)
 
+    # Compute effective points per player (for midseason leagues, subtract baseline)
+    player_effective_points: dict[uuid.UUID, Decimal] = {}
+    for pid in all_player_ids:
+        raw = player_points.get(pid, Decimal("0"))
+        if is_midseason:
+            p = players_map.get(pid)
+            baseline = Decimal(str(p.points_at_draft)) if p and p.points_at_draft is not None else Decimal("0")
+            player_effective_points[pid] = max(Decimal("0"), raw - baseline)
+        else:
+            player_effective_points[pid] = raw
+
     # Per-match per-team score history (for line chart)
     score_history = []
     if all_player_ids:
-        from collections import defaultdict
         history_stmt = (
             select(
                 PlayerMatchScore.match_id,
@@ -121,6 +158,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         history_result = await db.execute(history_stmt)
         match_team_pts: dict = defaultdict(lambda: defaultdict(Decimal))
         match_labels: dict[str, str] = {}
+        match_dates: dict[str, date | None] = {}
         for row in history_result.all():
             team_id = player_to_team.get(row.player_id)
             if not team_id:
@@ -130,6 +168,8 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
                 continue
             match_team_pts[row.match_id][team.name] += Decimal(str(row.match_points))
             match_labels[row.match_id] = row.match_label
+            if row.match_id not in match_dates:
+                match_dates[row.match_id] = _parse_match_date(row.match_label)
 
         def _match_sort_key(mid: str):
             try:
@@ -138,19 +178,25 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
                 return (1, mid)
 
         for mid in sorted(match_team_pts.keys(), key=_match_sort_key):
+            md = match_dates.get(mid)
+            if draft_cutoff and md and md < draft_cutoff:
+                continue
             score_history.append({
                 "match_id": mid,
                 "match_label": match_labels[mid],
                 "team_points": {t: float(p) for t, p in match_team_pts[mid].items()},
             })
 
-    # Count distinct matches played
-    matches_stmt = (
-        select(func.count(func.distinct(PlayerMatchScore.match_id)))
-        .where(PlayerMatchScore.season_id == season_id)
-    )
-    matches_result = await db.execute(matches_stmt)
-    matches_played = matches_result.scalar() or 0
+    # Count distinct matches (post-draft only for midseason leagues)
+    if is_midseason:
+        matches_played = len({e["match_id"] for e in score_history})
+    else:
+        matches_stmt = (
+            select(func.count(func.distinct(PlayerMatchScore.match_id)))
+            .where(PlayerMatchScore.season_id == season_id)
+        )
+        matches_result = await db.execute(matches_stmt)
+        matches_played = matches_result.scalar() or 0
 
     # Last updated timestamp
     last_updated_stmt = (
@@ -161,11 +207,11 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
     last_updated_val = last_updated_result.scalar()
     last_updated = last_updated_val.isoformat() if last_updated_val else None
 
-    # --- 1. Main standings: sum points per team ---
+    # --- 1. Main standings: sum effective points per team ---
     standings = []
     for team in teams:
         total = sum(
-            player_points.get(pid, Decimal("0"))
+            player_effective_points.get(pid, Decimal("0"))
             for pid in team_player_ids.get(team.id, [])
         )
         standings.append({
@@ -211,14 +257,13 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         captain_name = config_data.get("captain")
         vc_name = config_data.get("vice_captain")
 
-        # Find captain and VC player IDs by name match within the team's roster
         captain_points = Decimal("0")
         vc_points = Decimal("0")
         for pid in team_player_ids.get(team.id, []):
             p = players_map.get(pid)
             if not p:
                 continue
-            pts = player_points.get(pid, Decimal("0"))
+            pts = player_effective_points.get(pid, Decimal("0"))
             if captain_name and p.name.lower() == captain_name.lower():
                 captain_points = pts * 2
             elif vc_name and p.name.lower() == vc_name.lower():
@@ -259,7 +304,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             p = players_map.get(pid)
             if not p:
                 continue
-            pts = player_points.get(pid, Decimal("0"))
+            pts = player_effective_points.get(pid, Decimal("0"))
             if batter_name and p.name.lower() == batter_name.lower():
                 total += pts
             elif bowler_name and p.name.lower() == bowler_name.lower():
@@ -302,9 +347,9 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             "ipl_mvp": config_data.get("ipl_mvp"),
         })
 
-    # --- 6. Top scorers: top 5 drafted players by total points ---
+    # --- 6. Top scorers: top 5 drafted players by effective points ---
     top_scorers = []
-    for pid, pts in sorted(player_points.items(), key=lambda x: x[1], reverse=True)[:5]:
+    for pid, pts in sorted(player_effective_points.items(), key=lambda x: x[1], reverse=True)[:5]:
         p = players_map.get(pid)
         team_id = player_to_team.get(pid)
         team = team_map.get(team_id) if team_id else None
@@ -338,7 +383,6 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
     undrafted_result = await db.execute(undrafted_scores_stmt)
     undrafted_rows = undrafted_result.all()
 
-    # Load player info for undrafted players
     undrafted_ids = [row.player_id for row in undrafted_rows]
     undrafted_players_map: dict[uuid.UUID, Player] = {}
     if undrafted_ids:
@@ -366,7 +410,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             p = players_map.get(pid)
             if not p:
                 continue
-            pts = player_points.get(pid, Decimal("0"))
+            pts = player_effective_points.get(pid, Decimal("0"))
             f = player_fours.get(pid, 0)
             s = player_sixes.get(pid, 0)
             team_total += pts
@@ -396,9 +440,10 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         "captain_vc_pot": captain_vc_pot,
         "awesome_threesome_pot": awesome_threesome_pot,
         "predictions": predictions,
-        "prediction_actuals": (season.draft_config or {}).get("prediction_actuals"),
+        "prediction_actuals": draft_config.get("prediction_actuals"),
         "score_history": score_history,
         "top_scorers": top_scorers,
         "top_undrafted": top_undrafted,
         "rosters": rosters,
+        "is_midseason": is_midseason,
     }

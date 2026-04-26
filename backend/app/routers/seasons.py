@@ -175,6 +175,8 @@ async def update_season(
             cfg = dict(season.draft_config or {})
             cfg["pick_timer_seconds"] = body.draft_config.pick_timer_seconds
             cfg["on_timeout"] = body.draft_config.on_timeout
+            if body.draft_config.midseason_draft_date is not None:
+                cfg["midseason_draft_date"] = body.draft_config.midseason_draft_date
             season.draft_config = cfg
 
     await db.commit()

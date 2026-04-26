@@ -20,6 +20,7 @@ class DraftConfig(BaseModel):
     scheduled_draft_time: str | None = None
     on_timeout: Literal["auto_pick", "skip_turn"] = "auto_pick"
     role_limits: dict[str, RoleLimitConfig] = Field(default_factory=dict)
+    midseason_draft_date: str | None = None  # ISO date "YYYY-MM-DD" for midseason leagues
 
 
 class SeasonCreate(BaseModel):

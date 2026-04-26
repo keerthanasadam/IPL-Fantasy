@@ -106,3 +106,4 @@ class DashboardResponse(BaseModel):
     top_scorers: list[TopScorerEntry]
     top_undrafted: list[UndraftedScorerEntry] = []
     rosters: list[TeamRoster]
+    is_midseason: bool = False
