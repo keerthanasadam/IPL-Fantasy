@@ -99,93 +99,146 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
     # Detect midseason league: season has midseason_draft_date set in draft_config
     is_midseason = bool(midseason_draft_date_str)
 
-    # Aggregate match scores per player
+    # Per-match per-player scores (needed for both history chart and midseason point filtering)
     player_points: dict[uuid.UUID, Decimal] = {}
     player_fours: dict[uuid.UUID, int] = {}
     player_sixes: dict[uuid.UUID, int] = {}
-
-    if all_player_ids:
-        scores_stmt = (
-            select(
-                PlayerMatchScore.player_id,
-                func.coalesce(func.sum(PlayerMatchScore.points), 0).label("total_points"),
-                func.coalesce(func.sum(PlayerMatchScore.fours), 0).label("total_fours"),
-                func.coalesce(func.sum(PlayerMatchScore.sixes), 0).label("total_sixes"),
-            )
-            .where(
-                PlayerMatchScore.season_id == season_id,
-                PlayerMatchScore.player_id.in_(all_player_ids),
-            )
-            .group_by(PlayerMatchScore.player_id)
-        )
-        scores_result = await db.execute(scores_stmt)
-        for row in scores_result.all():
-            player_points[row.player_id] = Decimal(str(row.total_points))
-            player_fours[row.player_id] = int(row.total_fours)
-            player_sixes[row.player_id] = int(row.total_sixes)
-
-    # Compute effective points per player (for midseason leagues, subtract baseline)
-    player_effective_points: dict[uuid.UUID, Decimal] = {}
-    for pid in all_player_ids:
-        raw = player_points.get(pid, Decimal("0"))
-        if is_midseason:
-            p = players_map.get(pid)
-            baseline = Decimal(str(p.points_at_draft)) if p and p.points_at_draft is not None else Decimal("0")
-            player_effective_points[pid] = max(Decimal("0"), raw - baseline)
-        else:
-            player_effective_points[pid] = raw
-
-    # Per-match per-team score history (for line chart)
     score_history = []
+
     if all_player_ids:
-        history_stmt = (
-            select(
-                PlayerMatchScore.match_id,
-                PlayerMatchScore.match_label,
-                PlayerMatchScore.player_id,
-                func.sum(PlayerMatchScore.points).label("match_points"),
+        if is_midseason:
+            # For midseason leagues: load per-match data first so we can filter by date,
+            # then sum only post-draft matches for standings/rosters.
+            history_stmt = (
+                select(
+                    PlayerMatchScore.match_id,
+                    PlayerMatchScore.match_label,
+                    PlayerMatchScore.player_id,
+                    func.sum(PlayerMatchScore.points).label("match_points"),
+                    func.sum(PlayerMatchScore.fours).label("match_fours"),
+                    func.sum(PlayerMatchScore.sixes).label("match_sixes"),
+                )
+                .where(
+                    PlayerMatchScore.season_id == season_id,
+                    PlayerMatchScore.player_id.in_(all_player_ids),
+                )
+                .group_by(
+                    PlayerMatchScore.match_id,
+                    PlayerMatchScore.match_label,
+                    PlayerMatchScore.player_id,
+                )
             )
-            .where(
-                PlayerMatchScore.season_id == season_id,
-                PlayerMatchScore.player_id.in_(all_player_ids),
-            )
-            .group_by(
-                PlayerMatchScore.match_id,
-                PlayerMatchScore.match_label,
-                PlayerMatchScore.player_id,
-            )
-        )
-        history_result = await db.execute(history_stmt)
-        match_team_pts: dict = defaultdict(lambda: defaultdict(Decimal))
-        match_labels: dict[str, str] = {}
-        match_dates: dict[str, date | None] = {}
-        for row in history_result.all():
-            team_id = player_to_team.get(row.player_id)
-            if not team_id:
-                continue
-            team = team_map.get(team_id)
-            if not team:
-                continue
-            match_team_pts[row.match_id][team.name] += Decimal(str(row.match_points))
-            match_labels[row.match_id] = row.match_label
-            if row.match_id not in match_dates:
-                match_dates[row.match_id] = _parse_match_date(row.match_label)
+            history_rows = (await db.execute(history_stmt)).all()
 
-        def _match_sort_key(mid: str):
-            try:
-                return (0, int(mid))
-            except (ValueError, TypeError):
-                return (1, mid)
+            match_labels: dict[str, str] = {}
+            match_dates: dict[str, date | None] = {}
+            match_team_pts: dict = defaultdict(lambda: defaultdict(Decimal))
 
-        for mid in sorted(match_team_pts.keys(), key=_match_sort_key):
-            md = match_dates.get(mid)
-            if draft_cutoff and md and md < draft_cutoff:
-                continue
-            score_history.append({
-                "match_id": mid,
-                "match_label": match_labels[mid],
-                "team_points": {t: float(p) for t, p in match_team_pts[mid].items()},
-            })
+            for row in history_rows:
+                md_label = row.match_label
+                if row.match_id not in match_dates:
+                    match_dates[row.match_id] = _parse_match_date(md_label)
+                    match_labels[row.match_id] = md_label
+
+                md = match_dates[row.match_id]
+                is_post_draft = (not draft_cutoff) or (md is None) or (md >= draft_cutoff)
+
+                if is_post_draft:
+                    # Accumulate player totals for post-draft matches only
+                    player_points[row.player_id] = (
+                        player_points.get(row.player_id, Decimal("0"))
+                        + Decimal(str(row.match_points))
+                    )
+                    player_fours[row.player_id] = (
+                        player_fours.get(row.player_id, 0) + int(row.match_fours or 0)
+                    )
+                    player_sixes[row.player_id] = (
+                        player_sixes.get(row.player_id, 0) + int(row.match_sixes or 0)
+                    )
+
+                    # Accumulate per-team chart data
+                    team_id = player_to_team.get(row.player_id)
+                    team = team_map.get(team_id) if team_id else None
+                    if team:
+                        match_team_pts[row.match_id][team.name] += Decimal(str(row.match_points))
+
+            def _match_sort_key(mid: str):
+                try:
+                    return (0, int(mid))
+                except (ValueError, TypeError):
+                    return (1, mid)
+
+            for mid in sorted(match_team_pts.keys(), key=_match_sort_key):
+                score_history.append({
+                    "match_id": mid,
+                    "match_label": match_labels[mid],
+                    "team_points": {t: float(p) for t, p in match_team_pts[mid].items()},
+                })
+
+        else:
+            # Non-midseason: efficient aggregate query
+            scores_stmt = (
+                select(
+                    PlayerMatchScore.player_id,
+                    func.coalesce(func.sum(PlayerMatchScore.points), 0).label("total_points"),
+                    func.coalesce(func.sum(PlayerMatchScore.fours), 0).label("total_fours"),
+                    func.coalesce(func.sum(PlayerMatchScore.sixes), 0).label("total_sixes"),
+                )
+                .where(
+                    PlayerMatchScore.season_id == season_id,
+                    PlayerMatchScore.player_id.in_(all_player_ids),
+                )
+                .group_by(PlayerMatchScore.player_id)
+            )
+            for row in (await db.execute(scores_stmt)).all():
+                player_points[row.player_id] = Decimal(str(row.total_points))
+                player_fours[row.player_id] = int(row.total_fours)
+                player_sixes[row.player_id] = int(row.total_sixes)
+
+            # Per-match chart data for non-midseason
+            history_stmt = (
+                select(
+                    PlayerMatchScore.match_id,
+                    PlayerMatchScore.match_label,
+                    PlayerMatchScore.player_id,
+                    func.sum(PlayerMatchScore.points).label("match_points"),
+                )
+                .where(
+                    PlayerMatchScore.season_id == season_id,
+                    PlayerMatchScore.player_id.in_(all_player_ids),
+                )
+                .group_by(
+                    PlayerMatchScore.match_id,
+                    PlayerMatchScore.match_label,
+                    PlayerMatchScore.player_id,
+                )
+            )
+            match_team_pts_ns: dict = defaultdict(lambda: defaultdict(Decimal))
+            match_labels_ns: dict[str, str] = {}
+            for row in (await db.execute(history_stmt)).all():
+                team_id = player_to_team.get(row.player_id)
+                team = team_map.get(team_id) if team_id else None
+                if not team:
+                    continue
+                match_team_pts_ns[row.match_id][team.name] += Decimal(str(row.match_points))
+                match_labels_ns[row.match_id] = row.match_label
+
+            def _match_sort_key(mid: str):  # noqa: F811
+                try:
+                    return (0, int(mid))
+                except (ValueError, TypeError):
+                    return (1, mid)
+
+            for mid in sorted(match_team_pts_ns.keys(), key=_match_sort_key):
+                score_history.append({
+                    "match_id": mid,
+                    "match_label": match_labels_ns[mid],
+                    "team_points": {t: float(p) for t, p in match_team_pts_ns[mid].items()},
+                })
+
+    # For midseason, player_points already contains only post-draft points.
+    # For regular leagues, player_points is the full season total.
+    player_effective_points = player_points
 
     # Count distinct matches (post-draft only for midseason leagues)
     if is_midseason:
