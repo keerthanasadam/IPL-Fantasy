@@ -20,6 +20,7 @@ class Player(UUIDMixin, TimestampMixin, Base):
     designation: Mapped[str] = mapped_column(String(50), nullable=False)
     ranking: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     points: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=Decimal("0"))
+    points_at_draft: Mapped[Decimal | None] = mapped_column(Numeric(10, 2), nullable=True, default=None)
     metadata_: Mapped[dict | None] = mapped_column("metadata", JSONB, default=dict)
 
     season = relationship("Season", back_populates="players")

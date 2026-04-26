@@ -249,6 +249,12 @@ export const api = {
     return res.json();
   },
 
+  async getMidseasonDashboard(seasonId: string) {
+    const res = await fetch(`${BASE}/seasons/${seasonId}/midseason-dashboard`);
+    if (!res.ok) throw new Error('Failed to load midseason dashboard');
+    return res.json();
+  },
+
   // Admin: update scores
   updateScores(seasonId: string) {
     return fetch(`${BASE}/seasons/${seasonId}/update-scores`, {

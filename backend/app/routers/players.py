@@ -114,6 +114,8 @@ async def import_players(
             existing.ranking = ranking
             if points_value is not None:
                 existing.points = points_value
+                if existing.points_at_draft is None:
+                    existing.points_at_draft = points_value
             updated += 1
         else:
             player = Player(
@@ -123,6 +125,7 @@ async def import_players(
                 designation=designation,
                 ranking=ranking,
                 points=points_value,
+                points_at_draft=points_value,
             )
             db.add(player)
             existing_players[name.lower()] = player

@@ -512,7 +512,6 @@ export class PagePublicDashboard extends LitElement {
   @state() private adminUpdating = false;
   @state() private adminMsg = '';
   @state() private adminMsgType: 'success' | 'error' = 'success';
-  @state() private activeCardIndex = 0;
 
   /* Vaadin Router lifecycle */
   onAfterEnter(location: any) {
@@ -587,7 +586,6 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderHero(d)}
       <div class="leaderboard-section">${this._renderLeaderboard(d.standings)}</div>
       ${this._renderScoreChart(d.score_history, d.standings)}
-      ${this._renderSidePots(d)}
       ${this._renderTopScorers(d)}
       ${this._renderRosters(d)}
       ${isAdmin() ? this._renderAdmin() : nothing}
@@ -611,7 +609,6 @@ export class PagePublicDashboard extends LitElement {
               <span class="prize-item">\u{1F947} <span class="prize-amount">\u20B9${d.prize_pool.first}</span></span>
               <span class="prize-item">\u{1F948} <span class="prize-amount">\u20B9${d.prize_pool.second}</span></span>
               <span class="prize-item">\u{1F949} <span class="prize-amount">\u20B9${d.prize_pool.third}</span></span>
-              <span class="prize-item">Side Pots: <span class="prize-amount">\u20B9${d.prize_pool.side_pot_each} each</span></span>
             </div>
           </div>
         ` : nothing}
@@ -720,39 +717,6 @@ export class PagePublicDashboard extends LitElement {
     `;
   }
 
-  /* ── Side pots carousel (boundary, captain, awesome, predictions) ── */
-  private _onCarouselScroll(e: Event) {
-    const el = e.target as HTMLElement;
-    const index = Math.round(el.scrollLeft / el.clientWidth);
-    if (index !== this.activeCardIndex) this.activeCardIndex = index;
-  }
-
-  private _scrollToCard(index: number) {
-    const carousel = this.shadowRoot?.querySelector('.side-pots-grid') as HTMLElement;
-    if (!carousel) return;
-    carousel.scrollTo({ left: index * carousel.clientWidth, behavior: 'smooth' });
-  }
-
-  private _renderSidePots(d: DashboardData) {
-    const numCards = 4;
-    return html`
-      <div class="side-pots-section">
-        <div class="side-pots-grid" @scroll=${this._onCarouselScroll}>
-          ${this._renderBoundaryPot(d.boundary_pot)}
-          ${this._renderCaptainPot(d.captain_vc_pot)}
-          ${this._renderAwesomePot(d.awesome_threesome_pot)}
-          ${this._renderPredictionsCard(d)}
-        </div>
-        <div class="carousel-dots">
-          ${Array.from({ length: numCards }, (_, i) => html`
-            <div class="carousel-dot ${i === this.activeCardIndex ? 'active' : ''}"
-                 @click=${() => this._scrollToCard(i)}></div>
-          `)}
-        </div>
-      </div>
-    `;
-  }
-
   /* ── Leaderboard ── */
   private _renderLeaderboard(standings: Standing[]) {
     if (!standings.length) {
@@ -789,155 +753,6 @@ export class PagePublicDashboard extends LitElement {
             </tbody>
           </table>
         ` : nothing}
-      </div>
-    `;
-  }
-
-  /* ── Boundary Pot ── */
-  private _renderBoundaryPot(entries: BoundaryEntry[]) {
-    if (!entries.length) {
-      return html`<div class="glass-card"><div class="card-header">\u{1F525} Mellaga Kodatava Gattiga</div><p class="empty-msg">No boundary data yet</p></div>`;
-    }
-    const maxB = Math.max(...entries.map(e => e.boundary_points), 1);
-    return html`
-      <div class="glass-card">
-        <div class="card-header">\u{1F525} Mellaga Kodatava Gattiga</div>
-        <div class="card-subtitle">4s = 0.5 pts · 6s = 2 pts</div>
-        <table class="dash-table">
-          <thead><tr><th>#</th><th>Team</th><th style="text-align:right">Points</th></tr></thead>
-          <tbody>
-            ${entries.map((e, i) => html`
-              <tr>
-                <td class="rank">${e.rank}</td>
-                <td>
-                  <div class="team-name">${e.team_name}</div>
-                  <div class="owner">${e.owner_name || '-'}</div>
-                  <div class="boundary-bar"><div class="boundary-fill" style="width:${(e.boundary_points / maxB) * 100}%;background:${this._teamColor(i)}"></div></div>
-                  <div class="boundary-detail">${e.total_fours} fours (${(e.total_fours * 0.5).toFixed(1)}) · ${e.total_sixes} sixes (${(e.total_sixes * 2).toFixed(1)})</div>
-                </td>
-                <td class="pts">${e.boundary_points.toFixed(1)}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /* ── Captain/VC Pot ── */
-  private _renderCaptainPot(entries: CaptainEntry[]) {
-    if (!entries.length) {
-      return html`<div class="glass-card"><div class="card-header">\u{1F9E2} C/VC from Rounds 9-16</div><p class="empty-msg">No captain data yet</p></div>`;
-    }
-    return html`
-      <div class="glass-card">
-        <div class="card-header">\u{1F9E2} C/VC from Rounds 9-16</div>
-        <table class="dash-table">
-          <thead><tr><th>#</th><th>Team</th><th>Captain</th><th>VC</th><th style="text-align:right">Pts</th></tr></thead>
-          <tbody>
-            ${entries.map(e => html`
-              <tr>
-                <td class="rank">${e.rank}</td>
-                <td>
-                  <div class="team-name">${e.team_name}</div>
-                  <div class="owner">${e.owner_name || '-'}</div>
-                </td>
-                <td style="font-size:0.78rem">${e.captain || '-'}</td>
-                <td style="font-size:0.78rem">${e.vice_captain || '-'}</td>
-                <td class="pts">${e.total_points.toLocaleString()}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /* ── Awesome Threesome ── */
-  private _renderAwesomePot(entries: AwesomeEntry[]) {
-    if (!entries.length) {
-      return html`<div class="glass-card"><div class="card-header">\u26A1 Awesome Threesome</div><p class="empty-msg">No data yet</p></div>`;
-    }
-    return html`
-      <div class="glass-card">
-        <div class="card-header">\u26A1 Awesome Threesome</div>
-        <table class="dash-table">
-          <thead><tr><th>#</th><th>Team</th><th>Players</th><th style="text-align:right">Pts</th></tr></thead>
-          <tbody>
-            ${entries.map(e => html`
-              <tr>
-                <td class="rank">${e.rank}</td>
-                <td>
-                  <div class="team-name">${e.team_name}</div>
-                  <div class="owner">${e.owner_name || '-'}</div>
-                </td>
-                <td style="font-size:0.75rem;color:var(--text-muted);line-height:1.4">
-                  ${e.batter || '-'}<br>${e.bowler || '-'}<br>${e.allrounder || '-'}
-                </td>
-                <td class="pts">${e.total_points.toLocaleString()}</td>
-              </tr>
-            `)}
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  /* ── Predictions card (inside carousel) ── */
-  private _pickMatches(pick: string | null, actual: string | string[] | null): boolean {
-    if (!pick || !actual) return false;
-    const p = pick.toLowerCase().trim();
-    if (Array.isArray(actual)) return actual.some(a => a.toLowerCase().trim() === p);
-    return actual.toLowerCase().trim() === p;
-  }
-
-  private _renderPredictionsCard(d: DashboardData) {
-    const a = d.prediction_actuals;
-    const scored = d.predictions.map(p => {
-      const w = a ? this._pickMatches(p.ipl_winner, a.ipl_winner) : false;
-      const o = a ? this._pickMatches(p.orange_cap, a.orange_cap) : false;
-      const pc = a ? this._pickMatches(p.purple_cap, a.purple_cap) : false;
-      const m = a ? this._pickMatches(p.ipl_mvp, a.ipl_mvp) : false;
-      return { ...p, w, o, pc, m, total: +w + +o + +pc + +m };
-    }).sort((a, b) => b.total - a.total);
-
-    return html`
-      <div class="glass-card">
-        <div class="card-header">\u{1F3AF} Picku Cheppu Cash Kottu</div>
-        ${a ? html`<div class="card-subtitle">
-          Winner: ${a.ipl_winner || '?'} · Orange: ${a.orange_cap?.join('/') || '?'} · Purple: ${a.purple_cap?.join('/') || '?'}
-        </div>` : nothing}
-        ${!scored.length ? html`<p class="empty-msg">No predictions yet</p>` : html`
-          <div class="predictions-grid">
-            <table class="dash-table">
-              <thead>
-                <tr>
-                  <th>Team</th>
-                  <th>Winner</th>
-                  <th>Orange</th>
-                  <th>Purple</th>
-                  <th>MVP</th>
-                  ${a ? html`<th style="text-align:right">Pts</th>` : nothing}
-                </tr>
-              </thead>
-              <tbody>
-                ${scored.map(p => html`
-                  <tr>
-                    <td>
-                      <div class="team-name">${p.team_name}</div>
-                      <div class="owner">${p.owner_name || '-'}</div>
-                    </td>
-                    <td class="${p.w ? 'pick-correct' : ''}">${p.ipl_winner || '-'}</td>
-                    <td class="${p.o ? 'pick-correct' : ''}">${p.orange_cap || '-'}</td>
-                    <td class="${p.pc ? 'pick-correct' : ''}">${p.purple_cap || '-'}</td>
-                    <td class="${p.m ? 'pick-correct' : ''}">${p.ipl_mvp || '-'}</td>
-                    ${a ? html`<td class="pts">${p.total}</td>` : nothing}
-                  </tr>
-                `)}
-              </tbody>
-            </table>
-          </div>
-        `}
       </div>
     `;
   }
