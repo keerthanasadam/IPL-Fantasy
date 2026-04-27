@@ -940,6 +940,32 @@ export class PagePublicDashboard extends LitElement {
           </div>
         ` : nothing}
 
+        ${d.predictions?.length ? html`
+          <div class="glass-card">
+            <div class="card-header">🔮 Predictions</div>
+            <p class="card-subtitle">IPL Winner · Orange Cap · Purple Cap · MVP</p>
+            <table class="dash-table">
+              <thead><tr><th>Team</th><th>Winner</th><th>🟠 Cap</th><th>🟣 Cap</th><th>MVP</th></tr></thead>
+              <tbody>
+                ${d.predictions.map(e => {
+                  const actual = d.prediction_actuals;
+                  const hit = (val: string | null, act: string | string[] | null) =>
+                    val && act && (Array.isArray(act) ? act.some(a => a.toLowerCase() === val.toLowerCase()) : act.toLowerCase() === val.toLowerCase());
+                  return html`
+                    <tr>
+                      <td class="team-name">${e.team_name}</td>
+                      <td style="font-size:0.78rem;color:${hit(e.ipl_winner, actual?.ipl_winner ?? null) ? '#4ade80' : 'var(--text-muted)'}">${e.ipl_winner || '—'}</td>
+                      <td style="font-size:0.78rem;color:${hit(e.orange_cap, actual?.orange_cap ?? null) ? '#4ade80' : 'var(--text-muted)'}">${e.orange_cap || '—'}</td>
+                      <td style="font-size:0.78rem;color:${hit(e.purple_cap, actual?.purple_cap ?? null) ? '#4ade80' : 'var(--text-muted)'}">${e.purple_cap || '—'}</td>
+                      <td style="font-size:0.78rem;color:${hit(e.ipl_mvp, actual?.ipl_mvp ?? null) ? '#4ade80' : 'var(--text-muted)'}">${e.ipl_mvp || '—'}</td>
+                    </tr>
+                  `;
+                })}
+              </tbody>
+            </table>
+          </div>
+        ` : nothing}
+
       </div>
     `;
   }
