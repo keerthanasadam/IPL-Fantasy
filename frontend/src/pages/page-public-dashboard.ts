@@ -568,6 +568,7 @@ export class PagePublicDashboard extends LitElement {
   @state() private adminUpdating = false;
   @state() private adminMsg = '';
   @state() private adminMsgType: 'success' | 'error' = 'success';
+  @state() private lastChecked: Date | null = null;
 
   /* Vaadin Router lifecycle */
   onAfterEnter(location: any) {
@@ -580,6 +581,7 @@ export class PagePublicDashboard extends LitElement {
     this.error = '';
     try {
       this.data = await api.getPublicDashboard(this.seasonId);
+      this.lastChecked = new Date();
     } catch (e: any) {
       this.error = e.message || 'Failed to load dashboard';
     } finally {
@@ -650,21 +652,19 @@ export class PagePublicDashboard extends LitElement {
 
   /* ── Hero ── */
   private _renderHero(d: DashboardData) {
-    const updated = d.last_updated
-      ? new Date(d.last_updated).toLocaleString('en-US', {
-          timeZone: 'America/New_York',
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }) + ' EST'
-      : 'Not yet';
+    const fmt = (dt: Date) => dt.toLocaleString('en-US', {
+      timeZone: 'America/New_York', dateStyle: 'medium', timeStyle: 'short',
+    }) + ' EST';
+    const checkedStr = this.lastChecked ? fmt(this.lastChecked) : 'Loading…';
+    const dataStr = d.last_updated ? fmt(new Date(d.last_updated)) : 'No data yet';
     return html`
       <div class="hero">
         ${d.is_midseason ? html`<div class="ms-hero-eyebrow">${d.league_name}</div>` : nothing}
         <div class="hero-title ${d.is_midseason ? 'ms-hero-title' : ''}">${d.is_midseason ? d.season_label : d.league_name}</div>
         <div class="hero-subtitle">${d.is_midseason ? 'Mid-Season Draft · Second Half' : d.season_label}</div>
         <div class="hero-meta">
-          <span class="matches-badge">${d.matches_played} matches played</span>
-          <span class="matches-badge" title="Scores auto-update daily at 1:15 PM EST">🕐 ${updated}</span>
+          <span class="matches-badge">⚡ ${d.matches_played} matches played</span>
+          <span class="matches-badge" title="Match data last written: ${dataStr} · Auto-updates daily at 1:15 PM EST">🕐 Checked ${checkedStr}</span>
         </div>
         ${d.prize_pool ? html`
           <div style="margin-top:1.25rem;text-align:center;">
