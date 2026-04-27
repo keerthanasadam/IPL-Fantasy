@@ -526,16 +526,35 @@ export class PagePublicDashboard extends LitElement {
           scroll-snap-align: start;
           min-width: 0;
         }
-        .side-pots-grid::after {
-          content: '';
-          flex: 0 0 1px;
-        }
+        .side-pots-grid::after { content: ''; flex: 0 0 1px; }
         .carousel-dots { display: flex; }
         .top-scorer-heroes { grid-template-columns: 1fr; }
-        .podium { flex-direction: column; }
         .scorer-name { font-size: 1.15rem; }
         .scorer-points { font-size: 1.5rem; }
         .prize-bar { flex-direction: column; gap: 0.5rem; padding: 0.75rem 1rem; }
+
+        /* Podium: stay horizontal, just compact */
+        .podium { gap: 0.4rem; }
+        .podium-card { padding: 0.6rem 0.3rem; border-radius: 10px; }
+        .podium-card.gold { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+        .podium-medal { font-size: 1.2rem; }
+        .podium-team { font-size: 0.72rem; }
+        .podium-owner { font-size: 0.62rem; }
+        .podium-points { font-size: 1.05rem; }
+        .ms-podium-sub { font-size: 0.6rem; }
+
+        /* Standings table: hide owner + secondary cols on mobile */
+        .col-owner { display: none; }
+        .col-at-half { display: none; }
+        .col-total { display: none; }
+        /* Stack team + owner in one cell */
+        .cell-team-owner { display: flex; flex-direction: column; }
+        .cell-owner-sub { font-size: 0.7rem; color: var(--text-muted); }
+        .col-owner-inline { display: block; }
+      }
+      /* Hide inline owner sub on desktop (separate owner column shown there) */
+      @media (min-width: 769px) {
+        .col-owner-inline { display: none; }
       }
     `,
   ];
@@ -795,8 +814,13 @@ export class PagePublicDashboard extends LitElement {
           <table class="dash-table">
             <thead>
               <tr>
-                <th>#</th><th>Team</th><th>Owner</th>
-                ${isMidseason ? html`<th style="text-align:right">At Half</th><th style="text-align:right">Effective ↓</th><th style="text-align:right">Total</th>` : html`<th style="text-align:right">Pts</th>`}
+                <th>#</th><th>Team</th>
+                <th class="col-owner">Owner</th>
+                ${isMidseason ? html`
+                  <th class="col-at-half" style="text-align:right">At Half</th>
+                  <th style="text-align:right">Effective ↓</th>
+                  <th class="col-total" style="text-align:right">Total</th>
+                ` : html`<th style="text-align:right">Pts</th>`}
               </tr>
             </thead>
             <tbody>
@@ -807,17 +831,22 @@ export class PagePublicDashboard extends LitElement {
                       ? html`<span class="rank-badge ${msRankCls[s.rank - 1]}" style="display:inline-flex;align-items:center;justify-content:center;width:1.6rem;height:1.6rem;border-radius:50%;font-size:0.72rem;font-weight:800">${s.rank}</span>`
                       : s.rank}
                   </td>
-                  <td class="team-name">${s.team_name}</td>
-                  <td class="owner">${s.owner_name || '-'}</td>
+                  <td class="team-name">
+                    <div class="cell-team-owner">
+                      <span>${s.team_name}</span>
+                      <span class="cell-owner-sub col-owner-inline">${s.owner_name || ''}</span>
+                    </div>
+                  </td>
+                  <td class="col-owner">${s.owner_name || '-'}</td>
                   ${isMidseason ? html`
-                    <td style="text-align:right;color:var(--text-muted);font-size:0.82rem">${(s.points_at_half ?? 0).toFixed(1)}</td>
+                    <td class="col-at-half" style="text-align:right;color:var(--text-muted);font-size:0.82rem">${(s.points_at_half ?? 0).toFixed(1)}</td>
                     <td style="text-align:right">
                       <div class="ms-effective">${(s.effective_points ?? 0).toFixed(1)}</div>
                       <div style="height:3px;border-radius:2px;background:rgba(255,255,255,0.06);margin-top:3px;overflow:hidden">
                         <div style="height:100%;border-radius:2px;background:#f97316;width:${maxEff > 0 ? (((s.effective_points ?? 0) / maxEff) * 100).toFixed(1) : 0}%"></div>
                       </div>
                     </td>
-                    <td style="text-align:right;font-size:0.82rem;color:var(--text-subtle)">${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}</td>
+                    <td class="col-total" style="text-align:right;font-size:0.82rem;color:var(--text-subtle)">${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}</td>
                   ` : html`<td class="pts">${s.total_points.toLocaleString()}</td>`}
                 </tr>
               `)}
