@@ -211,6 +211,7 @@ export class PagePublicDashboard extends LitElement {
         box-shadow: 0 0 36px rgba(251,191,36,0.18);
         padding-top: 1.5rem;
         padding-bottom: 1.5rem;
+        transform: translateY(-20px);
       }
       .podium-card.silver { border-color: rgba(6,182,212,0.35); background: rgba(6,182,212,0.06); }
       .podium-card.bronze { border-color: rgba(244,63,94,0.35); background: rgba(244,63,94,0.06); }
