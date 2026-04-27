@@ -195,6 +195,7 @@ export class PagePublicDashboard extends LitElement {
         display: flex;
         gap: 0.75rem;
         margin-bottom: 1rem;
+        padding-top: 24px;
         align-items: flex-end;
       }
       .podium-card {
@@ -535,9 +536,9 @@ export class PagePublicDashboard extends LitElement {
         .prize-bar { flex-direction: column; gap: 0.5rem; padding: 0.75rem 1rem; }
 
         /* Podium: stay horizontal, just compact */
-        .podium { gap: 0.4rem; }
+        .podium { gap: 0.4rem; padding-top: 20px; }
         .podium-card { padding: 0.6rem 0.3rem; border-radius: 10px; }
-        .podium-card.gold { padding-top: 0.9rem; padding-bottom: 0.9rem; }
+        .podium-card.gold { padding-top: 0.9rem; padding-bottom: 0.9rem; transform: translateY(-12px); }
         .podium-medal { font-size: 1.2rem; }
         .podium-team { font-size: 0.72rem; }
         .podium-owner { font-size: 0.62rem; }
