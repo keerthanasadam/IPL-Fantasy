@@ -19,8 +19,8 @@ class Settings(BaseSettings):
 
     # Auto-scrape schedule: comma-separated hours in 24h IST format
     # e.g. "12" means 12:xx IST daily
-    SCRAPE_HOURS_IST: str = "13"
-    # Minute within each hour to fire (EST). Default 15 → 1:15 PM EST
+    SCRAPE_HOURS_IST: str = "11,13"
+    # Minute within each hour to fire (EST). Default 15 → 11:15 AM and 1:15 PM EST
     SCRAPE_MINUTE_IST: int = 15
     # Comma-separated season IDs to scrape (both leagues). Replaces legacy SCRAPE_SEASON_ID.
     SCRAPE_SEASON_IDS: str = ""
