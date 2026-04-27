@@ -644,6 +644,7 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderHero(d)}
       <div class="leaderboard-section">${this._renderLeaderboard(d.standings, d.is_midseason)}</div>
       ${this._renderScoreChart(d.score_history, d.standings)}
+      ${d.is_midseason ? nothing : this._renderSidePots(d)}
       ${d.is_midseason ? nothing : this._renderTopScorers(d)}
       ${this._renderRosters(d)}
       ${isAdmin() ? this._renderAdmin() : nothing}
@@ -853,6 +854,92 @@ export class PagePublicDashboard extends LitElement {
             </tbody>
           </table>
         ` : nothing}
+      </div>
+    `;
+  }
+
+  /* ── Side Pots ── */
+  private _renderSidePots(d: DashboardData) {
+    const hasBoundary = d.boundary_pot?.length > 0;
+    const hasCaptain  = d.captain_vc_pot?.length > 0;
+    const hasAwesome  = d.awesome_threesome_pot?.length > 0;
+    if (!hasBoundary && !hasCaptain && !hasAwesome) return nothing;
+
+    const maxBoundary = hasBoundary
+      ? Math.max(...d.boundary_pot.map(e => e.boundary_points), 1)
+      : 1;
+
+    const COLORS = ['#818cf8','#34d399','#f472b6','#fb923c','#a78bfa','#38bdf8','#4ade80','#fbbf24'];
+
+    return html`
+      <div class="section-title"><span class="section-icon">🏆</span> Side Pots</div>
+      <div class="side-pots-grid">
+
+        ${hasBoundary ? html`
+          <div class="glass-card">
+            <div class="card-header">🏏 Mellaga Kodatava Gattiga</div>
+            <p class="card-subtitle">0.5 pts per four · 2 pts per six</p>
+            <table class="dash-table">
+              <thead><tr><th>#</th><th>Team</th><th>Owner</th><th style="text-align:right">4s</th><th style="text-align:right">6s</th><th style="text-align:right">Pts</th></tr></thead>
+              <tbody>
+                ${d.boundary_pot.map((e, i) => html`
+                  <tr>
+                    <td class="rank">${e.rank}</td>
+                    <td class="team-name">${e.team_name}</td>
+                    <td class="owner">${e.owner_name || '-'}</td>
+                    <td style="text-align:right;font-size:0.8rem">${e.total_fours}</td>
+                    <td style="text-align:right;font-size:0.8rem">${e.total_sixes}</td>
+                    <td style="text-align:right">
+                      <div class="pts">${e.boundary_points.toFixed(1)}</div>
+                      <div class="boundary-bar"><div class="boundary-fill" style="width:${((e.boundary_points / maxBoundary) * 100).toFixed(1)}%;background:${COLORS[i % COLORS.length]}"></div></div>
+                    </td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        ` : nothing}
+
+        ${hasCaptain ? html`
+          <div class="glass-card">
+            <div class="card-header">👑 Captain &amp; VC Pot</div>
+            <p class="card-subtitle">Captain 2× · Vice-Captain 1.5×</p>
+            <table class="dash-table">
+              <thead><tr><th>#</th><th>Team</th><th>C / VC</th><th style="text-align:right">Pts</th></tr></thead>
+              <tbody>
+                ${d.captain_vc_pot.map(e => html`
+                  <tr>
+                    <td class="rank">${e.rank}</td>
+                    <td class="team-name">${e.team_name}</td>
+                    <td style="font-size:0.78rem;color:var(--text-muted)">${e.captain || '—'} / ${e.vice_captain || '—'}</td>
+                    <td class="pts">${e.total_points.toFixed(1)}</td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        ` : nothing}
+
+        ${hasAwesome ? html`
+          <div class="glass-card">
+            <div class="card-header">⚡ Awesome Threesome</div>
+            <p class="card-subtitle">Best batter · bowler · all-rounder</p>
+            <table class="dash-table">
+              <thead><tr><th>#</th><th>Team</th><th>Trio</th><th style="text-align:right">Pts</th></tr></thead>
+              <tbody>
+                ${d.awesome_threesome_pot.map(e => html`
+                  <tr>
+                    <td class="rank">${e.rank}</td>
+                    <td class="team-name">${e.team_name}</td>
+                    <td style="font-size:0.78rem;color:var(--text-muted)">${[e.batter, e.bowler, e.allrounder].filter(Boolean).join(' · ') || '—'}</td>
+                    <td class="pts">${e.total_points.toFixed(1)}</td>
+                  </tr>
+                `)}
+              </tbody>
+            </table>
+          </div>
+        ` : nothing}
+
       </div>
     `;
   }
