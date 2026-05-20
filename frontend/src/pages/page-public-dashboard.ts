@@ -15,7 +15,7 @@ interface PredictionActuals { ipl_winner: string | null; orange_cap: string[] | 
 interface ScoreHistoryEntry { match_id: string; match_label: string; team_points: Record<string, number> }
 interface TopScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; fantasy_team: string | null; owner_name: string | null; draft_round: number | null }
 interface UndraftedScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number }
-interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number }
+interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number; benched?: boolean }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
 interface PrizePool { first: number; second: number; third: number; side_pot_each: number }
 
@@ -1082,9 +1082,12 @@ export class PagePublicDashboard extends LitElement {
                   ${displayPlayers.map(p => {
                     const nameMatch = isSearching && p.player_name.toLowerCase().includes(q);
                     return html`
-                      <tr>
+                      <tr style="${p.benched ? 'opacity:0.45;' : ''}">
                         <td><span class="round-badge">${p.draft_round}</span></td>
-                        <td class="team-name">${nameMatch ? this._highlightName(p.player_name, q) : p.player_name}</td>
+                        <td class="team-name">
+                          ${nameMatch ? this._highlightName(p.player_name, q) : p.player_name}
+                          ${p.benched ? html`<span style="font-size:0.65rem;font-weight:700;color:var(--text-muted);margin-left:0.35rem;letter-spacing:0.04em;">BENCH</span>` : nothing}
+                        </td>
                         <td style="font-size:0.78rem">${p.ipl_team || '-'}</td>
                         <td class="pts">${p.total_points.toLocaleString()}</td>
                       </tr>
