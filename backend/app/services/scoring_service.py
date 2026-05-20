@@ -240,6 +240,18 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
     # For regular leagues, player_points is the full season total.
     player_effective_points = player_points
 
+    # For midseason: only count the best 16 players (out of 18) per team.
+    team_active_pids: dict[uuid.UUID, set[uuid.UUID]] = {}
+    if is_midseason:
+        for team in teams:
+            pids = team_player_ids.get(team.id, [])
+            sorted_pids = sorted(
+                pids,
+                key=lambda p: player_effective_points.get(p, Decimal("0")),
+                reverse=True,
+            )
+            team_active_pids[team.id] = set(sorted_pids[:16])
+
     # Count distinct matches (post-draft only for midseason leagues)
     if is_midseason:
         matches_played = len({e["match_id"] for e in score_history})
@@ -263,9 +275,12 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
     # --- 1. Main standings: sum effective points per team ---
     standings = []
     for team in teams:
+        pids = team_player_ids.get(team.id, [])
+        if is_midseason:
+            pids = [p for p in pids if p in team_active_pids.get(team.id, set())]
         total = sum(
             player_effective_points.get(pid, Decimal("0"))
-            for pid in team_player_ids.get(team.id, [])
+            for pid in pids
         )
         points_at_half = None
         if is_midseason:
@@ -478,7 +493,8 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
             pts = player_effective_points.get(pid, Decimal("0"))
             f = player_fours.get(pid, 0)
             s = player_sixes.get(pid, 0)
-            team_total += pts
+            if not (is_midseason and pid not in team_active_pids.get(team.id, set())):
+                team_total += pts
             players_list.append({
                 "player_name": p.name,
                 "ipl_team": p.ipl_team,
@@ -486,6 +502,7 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
                 "total_points": float(pts),
                 "total_boundaries": f + s,
                 "draft_round": player_to_round.get(pid, 0),
+                "benched": is_midseason and pid not in team_active_pids.get(team.id, set()),
             })
         players_list.sort(key=lambda x: x["total_points"], reverse=True)
         rosters.append({
