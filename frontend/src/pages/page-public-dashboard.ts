@@ -17,7 +17,8 @@ interface TopScorer { player_name: string; ipl_team: string | null; designation:
 interface UndraftedScorer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number }
 interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number; benched?: boolean }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
-interface PrizePool { first: number; second: number; third: number; side_pot_each: number }
+interface SidePotPrize { name: string; amount: number }
+interface PrizeConfig { pool: number; first: number; second: number; third: number; side_pots: SidePotPrize[] }
 
 interface DashboardData {
   league_name: string;
@@ -34,8 +35,8 @@ interface DashboardData {
   top_scorers: TopScorer[];
   top_undrafted: UndraftedScorer[];
   rosters: Roster[];
-  prize_pool: PrizePool;
   is_midseason: boolean;
+  prizes: PrizeConfig | null;
 }
 
 type SortOption = 'points-desc' | 'round-asc' | 'round-desc';
@@ -113,6 +114,14 @@ export class PagePublicDashboard extends LitElement {
       }
       .prize-item { display: flex; align-items: center; gap: 0.3rem; }
       .prize-amount { color: var(--accent); }
+      .prize-breakdown { display: flex; flex-direction: column; gap: 0; }
+      .prize-row { display: grid; grid-template-columns: 9rem 1fr auto; align-items: center; gap: 1rem; padding: 0.65rem 0; border-bottom: 1px solid rgba(255,255,255,0.05); }
+      .prize-row:last-child { border-bottom: none; }
+      .prize-row-side .prize-place { color: var(--text-muted); font-size: 0.8rem; }
+      .prize-place { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
+      .prize-team { font-size: 0.85rem; color: var(--text-secondary); }
+      .prize-pot-name { font-style: italic; color: var(--text-muted); font-size: 0.78rem; }
+      .prize-breakdown .prize-amount { font-size: 0.95rem; font-weight: 800; color: #fbbf24; text-align: right; white-space: nowrap; }
 
       /* ── Section titles ── */
       .section-title {
@@ -646,6 +655,7 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderHero(d)}
       <div class="leaderboard-section">${this._renderLeaderboard(d.standings, d.is_midseason)}</div>
       ${this._renderScoreChart(d.score_history, d.standings)}
+      ${d.prizes ? this._renderPrizes(d) : nothing}
       ${d.is_midseason ? nothing : this._renderSidePots(d)}
       ${d.is_midseason ? nothing : this._renderTopScorers(d)}
       ${this._renderRosters(d)}
@@ -669,15 +679,7 @@ export class PagePublicDashboard extends LitElement {
           <span class="matches-badge">⚡ ${d.matches_played} matches played</span>
           <span class="matches-badge" title="Match data last written: ${dataStr} · Auto-updates daily at 1:15 PM EST">🕐 Checked ${checkedStr}</span>
         </div>
-        ${d.prize_pool ? html`
-          <div style="margin-top:1.25rem;text-align:center;">
-            <div class="prize-bar">
-              <span class="prize-item">\u{1F947} <span class="prize-amount">\u20B9${d.prize_pool.first}</span></span>
-              <span class="prize-item">\u{1F948} <span class="prize-amount">\u20B9${d.prize_pool.second}</span></span>
-              <span class="prize-item">\u{1F949} <span class="prize-amount">\u20B9${d.prize_pool.third}</span></span>
-            </div>
-          </div>
-        ` : nothing}
+        ${nothing}
       </div>
     `;
   }
@@ -806,10 +808,7 @@ export class PagePublicDashboard extends LitElement {
               <div class="podium-points ${podiumClass[i]}">
                 ${isMidseason ? (s.effective_points ?? 0).toLocaleString() : s.total_points.toLocaleString()}
               </div>
-              ${isMidseason ? html`
-                <div class="ms-podium-sub">
-                  Half: ${(s.points_at_half ?? 0).toFixed(0)} &nbsp;·&nbsp; Total: ${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}
-                </div>` : nothing}
+              ${nothing}
             </div>
           `; })}
         </div>
@@ -820,9 +819,7 @@ export class PagePublicDashboard extends LitElement {
                 <th>#</th><th>Team</th>
                 <th class="col-owner">Owner</th>
                 ${isMidseason ? html`
-                  <th class="col-at-half" style="text-align:right">At Half</th>
-                  <th style="text-align:right">Effective ↓</th>
-                  <th class="col-total" style="text-align:right">Total</th>
+                  <th style="text-align:right">Pts ↓</th>
                 ` : html`<th style="text-align:right">Pts</th>`}
               </tr>
             </thead>
@@ -842,20 +839,54 @@ export class PagePublicDashboard extends LitElement {
                   </td>
                   <td class="col-owner">${s.owner_name || '-'}</td>
                   ${isMidseason ? html`
-                    <td class="col-at-half" style="text-align:right;color:var(--text-muted);font-size:0.82rem">${(s.points_at_half ?? 0).toFixed(1)}</td>
                     <td style="text-align:right">
                       <div class="ms-effective">${(s.effective_points ?? 0).toFixed(1)}</div>
                       <div style="height:3px;border-radius:2px;background:rgba(255,255,255,0.06);margin-top:3px;overflow:hidden">
                         <div style="height:100%;border-radius:2px;background:#f97316;width:${maxEff > 0 ? (((s.effective_points ?? 0) / maxEff) * 100).toFixed(1) : 0}%"></div>
                       </div>
                     </td>
-                    <td class="col-total" style="text-align:right;font-size:0.82rem;color:var(--text-subtle)">${((s.points_at_half ?? 0) + (s.effective_points ?? 0)).toFixed(1)}</td>
                   ` : html`<td class="pts">${s.total_points.toLocaleString()}</td>`}
                 </tr>
               `)}
             </tbody>
           </table>
         ` : nothing}
+      </div>
+    `;
+  }
+
+  /* ── Prize Breakdown ── */
+  private _renderPrizes(d: DashboardData) {
+    const p = d.prizes!;
+    const fmt = (n: number) => `$${n.toLocaleString()}`;
+    const top3 = d.standings.slice(0, 3);
+    const podiumPrizes = [p.first, p.second, p.third];
+    const placeLabel = ['1st Place', '2nd Place', '3rd Place'];
+    const placeEmoji = ['🥇', '🥈', '🥉'];
+    return html`
+      <div class="leaderboard-section">
+        <div class="glass-card">
+          <div class="card-header">💰 Prize Pool — ${fmt(p.pool)}</div>
+          <div class="prize-breakdown">
+            ${podiumPrizes.map((amt, i) => {
+              const team = top3[i];
+              return html`
+                <div class="prize-row">
+                  <span class="prize-place">${placeEmoji[i]} ${placeLabel[i]}</span>
+                  <span class="prize-team">${team ? team.team_name : '—'}</span>
+                  <span class="prize-amount">${fmt(amt)}</span>
+                </div>
+              `;
+            })}
+            ${p.side_pots.map((sp, i) => html`
+              <div class="prize-row prize-row-side">
+                <span class="prize-place">🏆 Side Pot ${i + 1}</span>
+                <span class="prize-team prize-pot-name">${sp.name}</span>
+                <span class="prize-amount">${fmt(sp.amount)}</span>
+              </div>
+            `)}
+          </div>
+        </div>
       </div>
     `;
   }

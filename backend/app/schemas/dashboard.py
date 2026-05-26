@@ -1,4 +1,5 @@
 from pydantic import BaseModel
+from app.schemas.season import PrizeConfig
 
 
 class StandingEntry(BaseModel):
@@ -109,3 +110,4 @@ class DashboardResponse(BaseModel):
     top_undrafted: list[UndraftedScorerEntry] = []
     rosters: list[TeamRoster]
     is_midseason: bool = False
+    prizes: PrizeConfig | None = None

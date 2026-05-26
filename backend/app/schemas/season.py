@@ -12,6 +12,19 @@ class RoleLimitConfig(BaseModel):
     max: int = Field(default=99, ge=0)
 
 
+class SidePotPrize(BaseModel):
+    name: str
+    amount: float
+
+
+class PrizeConfig(BaseModel):
+    pool: float = 0
+    first: float = 0
+    second: float = 0
+    third: float = 0
+    side_pots: list[SidePotPrize] = Field(default_factory=list)
+
+
 class DraftConfig(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -21,6 +34,7 @@ class DraftConfig(BaseModel):
     on_timeout: Literal["auto_pick", "skip_turn"] = "auto_pick"
     role_limits: dict[str, RoleLimitConfig] = Field(default_factory=dict)
     midseason_draft_date: str | None = None  # ISO date "YYYY-MM-DD" for midseason leagues
+    prizes: PrizeConfig | None = None
 
 
 class SeasonCreate(BaseModel):
