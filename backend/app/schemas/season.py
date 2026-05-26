@@ -23,6 +23,7 @@ class PrizeConfig(BaseModel):
     second: float = 0
     third: float = 0
     side_pots: list[SidePotPrize] = Field(default_factory=list)
+    hosting: float = 0
 
 
 class DraftConfig(BaseModel):

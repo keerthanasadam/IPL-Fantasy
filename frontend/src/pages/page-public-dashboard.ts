@@ -18,7 +18,7 @@ interface UndraftedScorer { player_name: string; ipl_team: string | null; design
 interface RosterPlayer { player_name: string; ipl_team: string | null; designation: string | null; total_points: number; total_boundaries: number; draft_round: number; benched?: boolean }
 interface Roster { team_name: string; owner_name: string | null; total_points: number; players: RosterPlayer[] }
 interface SidePotPrize { name: string; amount: number }
-interface PrizeConfig { pool: number; first: number; second: number; third: number; side_pots: SidePotPrize[] }
+interface PrizeConfig { pool: number; first: number; second: number; third: number; side_pots: SidePotPrize[]; hosting?: number }
 
 interface DashboardData {
   league_name: string;
@@ -903,6 +903,13 @@ export class PagePublicDashboard extends LitElement {
                 </div>
               `;
             })}
+            ${p.hosting ? html`
+              <div class="prize-row prize-row-side">
+                <span class="prize-place" style="color:var(--text-muted)">🔧 Hosting</span>
+                <span class="prize-team" style="color:var(--text-muted);font-size:0.78rem;font-style:italic">Platform & AI costs</span>
+                <span class="prize-amount" style="color:var(--text-muted)">${fmt(p.hosting)}</span>
+              </div>
+            ` : nothing}
           </div>
         </div>
       </div>
