@@ -22,19 +22,25 @@ MIDSEASON_PRIZES = r'{"pool":800,"first":365,"second":240,"third":170,"side_pots
 
 
 def upgrade() -> None:
-    op.execute(
-        f"""
-        UPDATE seasons
-        SET draft_config = COALESCE(draft_config, '{{}}'::jsonb)
-                        || jsonb_build_object('prizes', '{PRIZES}'::jsonb)
-                        || jsonb_build_object('midseason_prizes', '{MIDSEASON_PRIZES}'::jsonb)
-        WHERE id = '{WOLFPACK_SEASON_ID}'
-        """
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            "UPDATE seasons "
+            "SET draft_config = COALESCE(draft_config, '{}'::jsonb) "
+            "                || jsonb_build_object('prizes', cast(:prizes as jsonb)) "
+            "                || jsonb_build_object('midseason_prizes', cast(:ms_prizes as jsonb)) "
+            "WHERE id = cast(:season_id as uuid)"
+        ),
+        {"prizes": PRIZES, "ms_prizes": MIDSEASON_PRIZES, "season_id": WOLFPACK_SEASON_ID},
     )
 
 
 def downgrade() -> None:
-    op.execute(
-        f"UPDATE seasons SET draft_config = draft_config - 'prizes' - 'midseason_prizes'"
-        f" WHERE id = '{WOLFPACK_SEASON_ID}'"
+    conn = op.get_bind()
+    conn.execute(
+        sa.text(
+            "UPDATE seasons SET draft_config = draft_config - 'prizes' - 'midseason_prizes' "
+            "WHERE id = cast(:season_id as uuid)"
+        ),
+        {"season_id": WOLFPACK_SEASON_ID},
     )
