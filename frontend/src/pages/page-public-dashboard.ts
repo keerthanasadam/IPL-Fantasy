@@ -121,7 +121,10 @@ export class PagePublicDashboard extends LitElement {
       .prize-row-side .prize-place { color: var(--text-muted); font-size: 0.8rem; }
       .prize-place { font-size: 0.85rem; font-weight: 600; color: var(--text-primary); white-space: nowrap; }
       .prize-team { font-size: 0.85rem; color: var(--text-secondary); }
+      .prize-pot-cell { display: flex; flex-direction: column; gap: 0.15rem; }
       .prize-pot-name { font-style: italic; color: var(--text-muted); font-size: 0.78rem; }
+      .prize-pot-leader { font-size: 0.82rem; font-weight: 700; color: var(--text-primary); }
+      .prize-pot-tbd { color: var(--text-muted); font-weight: 400; font-style: italic; }
       .prize-breakdown .prize-amount { font-size: 0.95rem; font-weight: 800; color: #fbbf24; text-align: right; white-space: nowrap; }
 
       /* ── Section titles ── */
@@ -865,6 +868,13 @@ export class PagePublicDashboard extends LitElement {
     const podiumPrizes = [p.first, p.second, p.third];
     const placeLabel = ['1st Place', '2nd Place', '3rd Place'];
     const placeEmoji = ['🥇', '🥈', '🥉'];
+    // Map side pot index → current leader (skip predictions pot at index 3)
+    const sidePotLeaders: Array<{ team: string; owner: string | null } | null> = [
+      d.boundary_pot[0]      ? { team: d.boundary_pot[0].team_name,       owner: d.boundary_pot[0].owner_name }      : null,
+      d.captain_vc_pot[0]    ? { team: d.captain_vc_pot[0].team_name,     owner: d.captain_vc_pot[0].owner_name }    : null,
+      d.awesome_threesome_pot[0] ? { team: d.awesome_threesome_pot[0].team_name, owner: d.awesome_threesome_pot[0].owner_name } : null,
+      null, // predictions — TBD at end of tournament
+    ];
     return html`
       <div class="leaderboard-section">
         <div class="glass-card">
@@ -880,13 +890,19 @@ export class PagePublicDashboard extends LitElement {
                 </div>
               `;
             })}
-            ${p.side_pots.map((sp, i) => html`
-              <div class="prize-row prize-row-side">
-                <span class="prize-place">🏆 Side Pot ${i + 1}</span>
-                <span class="prize-team prize-pot-name">${sp.name}</span>
-                <span class="prize-amount">${fmt(sp.amount)}</span>
-              </div>
-            `)}
+            ${p.side_pots.map((sp, i) => {
+              const leader = sidePotLeaders[i];
+              return html`
+                <div class="prize-row prize-row-side">
+                  <span class="prize-place">🏆 Side Pot ${i + 1}</span>
+                  <div class="prize-pot-cell">
+                    <span class="prize-pot-name">${sp.name}</span>
+                    ${leader ? html`<span class="prize-pot-leader">→ ${leader.team}</span>` : html`<span class="prize-pot-leader prize-pot-tbd">TBD</span>`}
+                  </div>
+                  <span class="prize-amount">${fmt(sp.amount)}</span>
+                </div>
+              `;
+            })}
           </div>
         </div>
       </div>
