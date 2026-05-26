@@ -35,6 +35,7 @@ class DraftConfig(BaseModel):
     role_limits: dict[str, RoleLimitConfig] = Field(default_factory=dict)
     midseason_draft_date: str | None = None  # ISO date "YYYY-MM-DD" for midseason leagues
     prizes: PrizeConfig | None = None
+    midseason_prizes: PrizeConfig | None = None
 
 
 class SeasonCreate(BaseModel):

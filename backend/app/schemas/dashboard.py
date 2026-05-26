@@ -111,3 +111,4 @@ class DashboardResponse(BaseModel):
     rosters: list[TeamRoster]
     is_midseason: bool = False
     prizes: PrizeConfig | None = None
+    midseason_prizes: PrizeConfig | None = None

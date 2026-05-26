@@ -37,6 +37,7 @@ interface DashboardData {
   rosters: Roster[];
   is_midseason: boolean;
   prizes: PrizeConfig | null;
+  midseason_prizes: PrizeConfig | null;
 }
 
 type SortOption = 'points-desc' | 'round-asc' | 'round-desc';
@@ -655,7 +656,9 @@ export class PagePublicDashboard extends LitElement {
       ${this._renderHero(d)}
       <div class="leaderboard-section">${this._renderLeaderboard(d.standings, d.is_midseason)}</div>
       ${this._renderScoreChart(d.score_history, d.standings)}
-      ${d.prizes ? this._renderPrizes(d) : nothing}
+      ${d.is_midseason
+        ? (d.midseason_prizes ? this._renderPrizes(d, d.midseason_prizes) : nothing)
+        : (d.prizes ? this._renderPrizes(d, d.prizes) : nothing)}
       ${d.is_midseason ? nothing : this._renderSidePots(d)}
       ${d.is_midseason ? nothing : this._renderTopScorers(d)}
       ${this._renderRosters(d)}
@@ -856,8 +859,7 @@ export class PagePublicDashboard extends LitElement {
   }
 
   /* ── Prize Breakdown ── */
-  private _renderPrizes(d: DashboardData) {
-    const p = d.prizes!;
+  private _renderPrizes(d: DashboardData, p: PrizeConfig) {
     const fmt = (n: number) => `$${n.toLocaleString()}`;
     const top3 = d.standings.slice(0, 3);
     const podiumPrizes = [p.first, p.second, p.third];

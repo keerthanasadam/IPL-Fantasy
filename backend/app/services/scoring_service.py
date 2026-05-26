@@ -529,4 +529,5 @@ async def get_dashboard_data(db: AsyncSession, season_id: uuid.UUID) -> dict:
         "rosters": rosters,
         "is_midseason": is_midseason,
         "prizes": draft_config.get("prizes"),
+        "midseason_prizes": draft_config.get("midseason_prizes"),
     }
